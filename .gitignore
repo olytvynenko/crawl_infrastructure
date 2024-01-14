@@ -185,5 +185,5 @@ fabric.properties
 # .idea
 
 .terraform/
-.terraform.lock.hcl
-.terraform.lock.hcl.info
+eks_cluster/.terraform.lock.hcl
+eks_cluster/.terraform.lock.hcl.info
