@@ -19,11 +19,6 @@ variable "vpc_name" {
   default     = "linxact-vpc"
 }
 
-variable "create_eks" {
-  type    = bool
-  default = false
-}
-
 variable "normal_instances" {
   description = "Normal instances"
   type        = list(string)
@@ -46,4 +41,34 @@ variable "recrawl_enhanced_instances" {
   description = "Normal instances"
   type        = list(string)
   default     = ["x2gd.medium"]
+}
+
+variable "clusters" {
+  type = map(object({
+    create = bool
+    region = string
+    name   = string
+  }))
+  default = {
+    "eks_n_virginia" = {
+      "create" = true
+      "region" = "us-east-1"
+      "name"   = "linxact-nv"
+    },
+    "eks_ohio" = {
+      "create" = true
+      "region" = "us-east-2"
+      "name"   = "linxact-oh"
+    },
+    "eks_oregon" = {
+      "create" = true
+      "region" = "us-west-2"
+      "name"   = "linxact-or"
+    },
+    "eks_n_california" = {
+      "create" = true
+      "region" = "us-west-1"
+      "name"   = "linxact-nc"
+    },
+  }
 }

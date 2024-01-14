@@ -1,29 +1,4 @@
-# Copyright (c) HashiCorp, Inc.
-# SPDX-License-Identifier: MPL-2.0
-
-#provider "aws" {
-#  region  = "us-east-1"
-#  alias   = "n_virginia"
-#}
-#
-#provider "aws" {
-#  region  = "us-east-2"
-#  alias   = "ohio"
-#}
-#
-#provider "aws" {
-#  region  = "us-west-2"
-#  alias   = "oregon"
-#}
-#
-#provider "aws" {
-#  region  = "us-west-1"
-#  alias   = "n_california"
-#}
-
-
-
-# Filter out local zones, which are not currently supported 
+# Filter out local zones, which are not currently supported
 # with managed node groups
 data "aws_availability_zones" "available" {
   filter {
@@ -49,7 +24,7 @@ resource "null_resource" "merge_kubeconfig" {
     always = timestamp()
   }
   provisioner "local-exec" {
-    command = "aws eks update-kubeconfig --name ${local.cluster_name} --alias ${local.cluster_name}-${var.region}"
+    command = "aws eks update-kubeconfig --region ${var.region} --name ${local.cluster_name} --alias ${local.cluster_name}-${var.region}"
   }
 }
 
