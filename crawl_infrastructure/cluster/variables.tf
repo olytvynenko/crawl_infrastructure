@@ -47,3 +47,8 @@ variable "recrawl_enhanced_instances" {
   type        = list(string)
   default     = ["x2gd.medium"]
 }
+
+variable "azs" {
+  type    = list(string)
+  default = []
+}

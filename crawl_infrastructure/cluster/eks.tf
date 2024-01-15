@@ -15,15 +15,15 @@ module "eks" {
     #    ami_type = "AL2_x86_64"
   }
 
-  #  eks_managed_node_groups = {
-  #    default_node_group = {
-  #      name = "crawl-1"
-  #      capacity_type = "SPOT"
-  #      instance_types = ["r7g.medium", "r7gd.medium", "r6g.medium", "r6gd.medium"]
-  #      min_size     = 1
-  #      max_size     = 3
-  #      desired_size = 2
-  #    }
-  #  }
+  eks_managed_node_groups = {
+    default_node_group = {
+      name           = "crawl-1"
+      capacity_type  = "SPOT"
+      instance_types = ["r7g.medium", "r7gd.medium", "r6g.medium", "r6gd.medium"]
+      min_size       = 1
+      max_size       = 3
+      desired_size   = 1
+    }
+  }
 
 }

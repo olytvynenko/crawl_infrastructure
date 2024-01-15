@@ -29,7 +29,7 @@ module "eks_n_virginia" {
   }
   cluster_name = var.clusters.eks_n_virginia.name
   region       = var.clusters.eks_n_virginia.region
-  #  n_azs         = 3
+  azs          = var.clusters.eks_n_virginia.azs
 }
 
 module "eks_ohio" {
@@ -40,7 +40,7 @@ module "eks_ohio" {
   }
   cluster_name = var.clusters.eks_ohio.name
   region       = var.clusters.eks_ohio.region
-  #  n_azs         = 3
+  azs          = var.clusters.eks_ohio.azs
 }
 
 module "eks_oregon" {
@@ -51,7 +51,7 @@ module "eks_oregon" {
   }
   cluster_name = var.clusters.eks_oregon.name
   region       = var.clusters.eks_oregon.region
-  #  n_azs        = 3
+  azs          = var.clusters.eks_oregon.azs
 }
 
 module "eks_n_california" {
@@ -62,5 +62,11 @@ module "eks_n_california" {
   }
   cluster_name = var.clusters.eks_n_california.name
   region       = var.clusters.eks_n_california.region
-  #  n_azs        = 2
+  azs          = var.clusters.eks_n_california.azs
 }
+
+#module "eks_region" {
+#  source = "./cluster"
+#  for_each = var.clusters
+#  count = each.value.create ? 1 : 0
+#}
