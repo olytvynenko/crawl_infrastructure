@@ -49,6 +49,8 @@ variable "clusters" {
     region = string
     name   = string
     azs    = list(string)
+    inst4  = list(string)
+    inst8  = list(string)
   }))
   default = {
     "eks_n_virginia" = {
@@ -56,24 +58,32 @@ variable "clusters" {
       "region" = "us-east-1"
       "name"   = "linxact-nv"
       "azs"    = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
+      "inst4"  = []
+      "inst8"  = []
     },
     "eks_ohio" = {
       "create" = true
       "region" = "us-east-2"
       "name"   = "linxact-oh"
       "azs"    = ["us-east-2a", "us-east-2b", "us-east-2c"]
+      "inst4"  = []
+      "inst8"  = []
     },
     "eks_oregon" = {
       "create" = true
       "region" = "us-west-2"
       "name"   = "linxact-or"
       "azs"    = ["us-west-2a", "us-west-2b", "us-west-2c", "us-west-2d"]
+      "inst4"  = []
+      "inst8"  = []
     },
     "eks_n_california" = {
       "create" = true
       "region" = "us-west-1"
       "name"   = "linxact-nc"
       "azs"    = ["us-west-1b", "us-west-1c"]
+      "inst4"  = []
+      "inst8"  = []
     },
   }
 }
