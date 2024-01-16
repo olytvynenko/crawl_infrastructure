@@ -1,6 +1,3 @@
-# Copyright (c) HashiCorp, Inc.
-# SPDX-License-Identifier: MPL-2.0
-
 variable "region" {
   description = "AWS region"
   type        = string
@@ -51,4 +48,9 @@ variable "recrawl_enhanced_instances" {
 variable "azs" {
   type    = list(string)
   default = []
+}
+
+variable "inst" {
+  type    = number
+  default = 4
 }

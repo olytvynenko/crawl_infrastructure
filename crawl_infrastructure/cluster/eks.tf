@@ -19,7 +19,7 @@ module "eks" {
     default_node_group = {
       name           = "crawl-1"
       capacity_type  = "SPOT"
-      instance_types = var.normal_instances
+      instance_types = var.inst == 4 ? var.normal_instances : var.enhanced_instances
       min_size       = 1
       max_size       = 3
       desired_size   = 1
