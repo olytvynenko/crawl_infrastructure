@@ -48,6 +48,7 @@ variable "clusters" {
     azs    = list(string)
     inst4  = list(string)
     inst8  = list(string)
+    inst16 = list(string)
   }))
   default = {
     "eks_n_virginia" = {
@@ -57,6 +58,7 @@ variable "clusters" {
       "azs"    = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
       "inst4"  = []
       "inst8"  = []
+      "inst16" = []
     },
     "eks_ohio" = {
       "create" = true
@@ -65,6 +67,7 @@ variable "clusters" {
       "azs"    = ["us-east-2a", "us-east-2b", "us-east-2c"]
       "inst4"  = []
       "inst8"  = []
+      "inst16" = []
     },
     "eks_oregon" = {
       "create" = true
@@ -73,6 +76,7 @@ variable "clusters" {
       "azs"    = ["us-west-2a", "us-west-2b", "us-west-2c", "us-west-2d"]
       "inst4"  = []
       "inst8"  = []
+      "inst16" = []
     },
     "eks_n_california" = {
       "create" = true
@@ -81,6 +85,7 @@ variable "clusters" {
       "azs"    = ["us-west-1b", "us-west-1c"]
       "inst4"  = []
       "inst8"  = []
+      "inst16" = []
     },
   }
 }

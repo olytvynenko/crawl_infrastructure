@@ -21,28 +21,22 @@ variable "create_eks" {
   default = false
 }
 
-variable "normal_instances" {
+variable "inst4" {
   description = "Normal instances"
   type        = list(string)
   default     = ["t4g.medium", "m6g.medium", "m7g.medium", "m6gd.medium"]
 }
 
-variable "recrawl_normal_instances" {
-  description = "Normal instances"
-  type        = list(string)
-  default     = ["r7g.medium", "r6g.medium"]
-}
-
-variable "enhanced_instances" {
+variable "inst8" {
   description = "Normal instances"
   type        = list(string)
   default     = ["r7g.medium", "r6g.medium", "r6gd.medium", "x2gd.medium", "r7gd.medium"]
 }
 
-variable "recrawl_enhanced_instances" {
+variable "inst16" {
   description = "Normal instances"
   type        = list(string)
-  default     = ["x2gd.medium"]
+  default     = ["r7g.large"]
 }
 
 variable "azs" {
