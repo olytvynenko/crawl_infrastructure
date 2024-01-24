@@ -24,11 +24,12 @@ module "eks_n_virginia" {
   providers = {
     aws = aws.n_virginia
   }
-  cluster_name = var.clusters.eks_n_virginia.name
-  region       = var.clusters.eks_n_virginia.region
-  azs          = var.clusters.eks_n_virginia.azs
-  inst4        = var.clusters.eks_n_virginia.inst4
-  inst8        = var.clusters.eks_n_virginia.inst8
+  cluster_name            = var.clusters.eks_n_virginia.name
+  region                  = var.clusters.eks_n_virginia.region
+  azs                     = var.clusters.eks_n_virginia.azs
+  inst4                   = var.clusters.eks_n_virginia.inst4
+  inst8                   = var.clusters.eks_n_virginia.inst8
+  karpenter_chart_version = var.karpenter_chart_version
 }
 
 module "eks_ohio" {
@@ -37,11 +38,12 @@ module "eks_ohio" {
   providers = {
     aws = aws.ohio
   }
-  cluster_name = var.clusters.eks_ohio.name
-  region       = var.clusters.eks_ohio.region
-  azs          = var.clusters.eks_ohio.azs
-  inst4        = var.clusters.ohio.inst4
-  inst8        = var.clusters.eks_ohio.inst8
+  cluster_name            = var.clusters.eks_ohio.name
+  region                  = var.clusters.eks_ohio.region
+  azs                     = var.clusters.eks_ohio.azs
+  inst4                   = var.clusters.eks_ohio.inst4
+  inst8                   = var.clusters.eks_ohio.inst8
+  karpenter_chart_version = var.karpenter_chart_version
 }
 
 module "eks_oregon" {
@@ -50,11 +52,12 @@ module "eks_oregon" {
   providers = {
     aws = aws.oregon
   }
-  cluster_name = var.clusters.eks_oregon.name
-  region       = var.clusters.eks_oregon.region
-  azs          = var.clusters.eks_oregon.azs
-  inst4        = var.clusters.eks_oregon.inst4
-  inst8        = var.clusters.eks_oregon.inst8
+  cluster_name            = var.clusters.eks_oregon.name
+  region                  = var.clusters.eks_oregon.region
+  azs                     = var.clusters.eks_oregon.azs
+  inst4                   = var.clusters.eks_oregon.inst4
+  inst8                   = var.clusters.eks_oregon.inst8
+  karpenter_chart_version = var.karpenter_chart_version
 }
 
 module "eks_n_california" {
@@ -63,11 +66,12 @@ module "eks_n_california" {
   providers = {
     aws = aws.n_california
   }
-  cluster_name = var.clusters.eks_n_california.name
-  region       = var.clusters.eks_n_california.region
-  azs          = var.clusters.eks_n_california.azs
-  inst4        = var.clusters.eks_n_california.inst4
-  inst8        = var.clusters.eks_n_california.inst8
+  cluster_name            = var.clusters.eks_n_california.name
+  region                  = var.clusters.eks_n_california.region
+  azs                     = var.clusters.eks_n_california.azs
+  inst4                   = var.clusters.eks_n_california.inst4
+  inst8                   = var.clusters.eks_n_california.inst8
+  karpenter_chart_version = var.karpenter_chart_version
 }
 
 #module "eks_region" {

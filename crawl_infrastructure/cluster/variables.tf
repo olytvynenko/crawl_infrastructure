@@ -48,3 +48,8 @@ variable "inst" {
   type    = number
   default = 4
 }
+
+variable "karpenter_chart_version" {
+  description = "Karpenter Helm chart version to be installed"
+  type        = string
+}

@@ -89,3 +89,8 @@ variable "clusters" {
     },
   }
 }
+
+variable "karpenter_chart_version" {
+  description = "Karpenter Helm chart version to be installed"
+  type        = string
+}
