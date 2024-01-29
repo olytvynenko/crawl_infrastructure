@@ -1,0 +1,38 @@
+---
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  ttlSecondsAfterEmpty: 60 # scale down nodes after 60 seconds without workloads (excluding daemons)
+  ttlSecondsUntilExpired: 604800 # expire nodes after 7 days (in seconds) = 7 * 60 * 60 * 24
+  limits:
+    resources:
+      cpu: 100 # limit to 100 CPU cores
+  requirements:
+    # Include general purpose instance families
+    - key: karpenter.k8s.aws/instance-family
+      operator: In
+      #      values: [t4g, m6g, m7g, m6gd]
+      values: [ m4, m5, m6 ]
+    # Exclude small instance sizes
+    - key: karpenter.k8s.aws/instance-size
+      operator: In
+      values: [ large, xlarge ]
+    - key: topology.kubernetes.io/zone
+      operator: In
+      values: [ us-east-1a, us-east-1b ]
+  providerRef:
+    name: crawl-provider
+  labels:
+    karpenter: crawl
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: linxact-nv
+  securityGroupSelector:
+    karpenter.sh/discovery: linxact-nv

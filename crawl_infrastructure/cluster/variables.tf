@@ -1,3 +1,19 @@
+variable "create" {
+  description = "Create or not"
+  type        = bool
+  default     = false
+}
+
+variable "repository_username" {
+  description = "Repository username"
+  type        = string
+}
+
+variable "repository_password" {
+  description = "Repository password"
+  type        = string
+}
+
 variable "region" {
   description = "AWS region"
   type        = string
@@ -52,4 +68,19 @@ variable "inst" {
 variable "karpenter_chart_version" {
   description = "Karpenter Helm chart version to be installed"
   type        = string
+}
+
+variable "karpenter_provisioner" {
+  type = list(object({
+    name            = string
+    instance-family = list(string)
+    instance-size   = list(string)
+    topology        = list(string)
+    labels          = optional(map(string))
+    taints = optional(object({
+      key    = string
+      value  = string
+      effect = string
+    }))
+  }))
 }

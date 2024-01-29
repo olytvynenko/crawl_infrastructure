@@ -94,3 +94,31 @@ variable "karpenter_chart_version" {
   description = "Karpenter Helm chart version to be installed"
   type        = string
 }
+
+variable "karpenter_provisioner" {
+  type = list(object({
+    name            = string
+    instance-family = list(string)
+    instance-size   = list(string)
+    topology        = list(string)
+    labels          = optional(map(string))
+    taints = optional(object({
+      key    = string
+      value  = string
+      effect = string
+    }))
+  }))
+}
+
+#variable "cluster_configs" {
+#  description = "A map of cluster configurations"
+#  type        = map(object({
+#    create                   = bool
+#    name                     = string
+#    region                   = string
+#    azs                      = list(string)
+#    inst4                     = number
+#    inst8                     = number
+#    inst16                    = number
+#  }))
+#}
