@@ -25,3 +25,19 @@ variable "repository_password" {
 variable "karpenter_chart_version" {
   type = string
 }
+
+variable "karpenter_provisioner" {
+  type = object({
+    name            = string
+    architectures   = list(string)
+    instance-family = list(string)
+    instance-size   = list(string)
+    topology        = list(string)
+    labels          = optional(map(string))
+    taints = optional(object({
+      key    = string
+      value  = string
+      effect = string
+    }))
+  })
+}

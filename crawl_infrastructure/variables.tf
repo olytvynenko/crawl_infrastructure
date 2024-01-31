@@ -96,8 +96,9 @@ variable "karpenter_chart_version" {
 }
 
 variable "karpenter_provisioner" {
-  type = list(object({
+  type = object({
     name            = string
+    architectures   = list(string)
     instance-family = list(string)
     instance-size   = list(string)
     topology        = list(string)
@@ -107,7 +108,7 @@ variable "karpenter_provisioner" {
       value  = string
       effect = string
     }))
-  }))
+  })
 }
 
 #variable "cluster_configs" {

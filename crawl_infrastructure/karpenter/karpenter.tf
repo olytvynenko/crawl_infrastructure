@@ -19,9 +19,8 @@ module "karpenter" {
 }
 
 resource "helm_release" "karpenter" {
-  namespace        = "karpenter"
-  create_namespace = true
-
+  namespace           = "karpenter"
+  create_namespace    = true
   name                = "karpenter"
   repository          = "oci://public.ecr.aws/karpenter"
   repository_username = var.repository_username
@@ -59,6 +58,42 @@ resource "helm_release" "karpenter" {
     name  = "settings.aws.interruptionQueueName"
     value = module.karpenter.queue_name
   }
+}
+
+resource "kubectl_manifest" "karpenter_provisioner" {
+  yaml_body = templatefile("${path.module}/configs/karpenter-provisioner.yaml.tmpl", {
+    name            = var.karpenter_provisioner.name
+    architectures   = var.karpenter_provisioner.architectures
+    instance-family = var.karpenter_provisioner.instance-family
+    instance-size   = var.karpenter_provisioner.instance-size
+    topology        = var.karpenter_provisioner.topology
+    taints          = var.karpenter_provisioner.taints
+    labels          = var.karpenter_provisioner.labels
+  })
+  depends_on = [
+    helm_release.karpenter
+  ]
+}
+
+resource "kubectl_manifest" "karpenter_node_template" {
+  yaml_body = <<-YAML
+    apiVersion: karpenter.k8s.aws/v1alpha1
+    kind: AWSNodeTemplate
+    metadata:
+      name: default
+    spec:
+      subnetSelector:
+        karpenter.sh/discovery: ${var.cluster_name}
+      securityGroupSelector:
+        karpenter.sh/discovery: ${var.cluster_name}
+      tags:
+        Name: ${var.cluster_name}-node
+        created-by: "karpneter"
+        karpenter.sh/discovery: ${var.cluster_name}
+  YAML
+  depends_on = [
+    helm_release.karpenter
+  ]
 }
 
 output "karpenter_irsa_arn" {
