@@ -4,7 +4,7 @@ data "aws_ecrpublic_authorization_token" "token" {
 
 locals {
   env = {
-    for zone in ["nv", "oregon"] : zone =>
+    for zone in ["nv", "oregon", "ohio", "nc"] : zone =>
     {
       cluster_name        = var.clusters[zone].name
       region              = var.clusters[zone].region
@@ -43,5 +43,10 @@ module "karpenter" {
   providers = {
     helm = helm
   }
-  karpenter_provisioner = var.karpenter_provisioner
+  karpenter_provisioner = {
+    name            = "default"
+    architectures   = ["arm64"]
+    instance-family = local.env[terraform.workspace]["inst4"]
+    topology        = local.env[terraform.workspace]["azs"]
+  }
 }

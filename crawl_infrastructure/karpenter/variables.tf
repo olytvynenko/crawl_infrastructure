@@ -31,7 +31,6 @@ variable "karpenter_provisioner" {
     name            = string
     architectures   = list(string)
     instance-family = list(string)
-    instance-size   = list(string)
     topology        = list(string)
     labels          = optional(map(string))
     taints = optional(object({

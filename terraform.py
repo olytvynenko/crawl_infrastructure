@@ -9,4 +9,7 @@ def destroy():
 
 
 if __name__ == "__main__":
-    destroy()
+    tf = Terraform(working_dir='./crawl_infrastructure')
+    for workspace in ["nv", "oregon", "ohio", "nc"]:
+        tf.set_workspace(workspace)
+        tf.apply(skip_plan=True)

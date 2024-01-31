@@ -65,7 +65,6 @@ resource "kubectl_manifest" "karpenter_provisioner" {
     name            = var.karpenter_provisioner.name
     architectures   = var.karpenter_provisioner.architectures
     instance-family = var.karpenter_provisioner.instance-family
-    instance-size   = var.karpenter_provisioner.instance-size
     topology        = var.karpenter_provisioner.topology
     taints          = var.karpenter_provisioner.taints
     labels          = var.karpenter_provisioner.labels

@@ -100,7 +100,6 @@ variable "karpenter_provisioner" {
     name            = string
     architectures   = list(string)
     instance-family = list(string)
-    instance-size   = list(string)
     topology        = list(string)
     labels          = optional(map(string))
     taints = optional(object({
@@ -110,16 +109,3 @@ variable "karpenter_provisioner" {
     }))
   })
 }
-
-#variable "cluster_configs" {
-#  description = "A map of cluster configurations"
-#  type        = map(object({
-#    create                   = bool
-#    name                     = string
-#    region                   = string
-#    azs                      = list(string)
-#    inst4                     = number
-#    inst8                     = number
-#    inst16                    = number
-#  }))
-#}
