@@ -219,5 +219,5 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-crawl_infrastructure/.terraform.lock.hcl
-crawl_infrastructure/.terraform.lock.hcl.info
+.terraform.lock.hcl
+.terraform.lock.hcl.info
