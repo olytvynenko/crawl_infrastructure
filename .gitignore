@@ -221,3 +221,8 @@ terraform.rc
 
 .terraform.lock.hcl
 .terraform.lock.hcl.info
+
+nv/
+oregon/
+ohio/
+nc/
