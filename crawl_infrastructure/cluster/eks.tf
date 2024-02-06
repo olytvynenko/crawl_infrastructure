@@ -1,7 +1,5 @@
 module "eks" {
 
-  #  count = var.create ? 1 : 0
-
   source  = "terraform-aws-modules/eks/aws"
   version = "19.15.3"
 
@@ -22,10 +20,9 @@ module "eks" {
 
   eks_managed_node_groups = {
     default = {
-      name          = "crawl-admin"
-      capacity_type = "ON_DEMAND"
-      #      instance_types = var.inst == 16 ? var.inst16 : var.inst == 8 ? var.inst8 : var.inst4
-      instance_types = ["t3.medium", "t3a.medium"]
+      name           = "crawl-admin"
+      capacity_type  = "ON_DEMAND"
+      instance_types = ["t3.small", "t3a.small"]
       min_size       = 2
       max_size       = 3
       desired_size   = 2
@@ -54,7 +51,7 @@ module "eks" {
   aws_auth_users = [
     {
       userarn  = "arn:aws:iam::411623750878:user/olexiy"
-      username = "arseny"
+      username = "olexiy"
       groups   = ["system:masters"]
     }
   ]
@@ -76,3 +73,4 @@ module "eks" {
   }
 
 }
+

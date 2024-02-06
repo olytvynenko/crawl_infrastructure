@@ -28,11 +28,11 @@ variable "karpenter_chart_version" {
 
 variable "karpenter_provisioner" {
   type = object({
-    name            = string
-    architectures   = list(string)
-    instance-family = list(string)
-    topology        = list(string)
-    labels          = optional(map(string))
+    name          = string
+    architectures = list(string)
+    instance-type = list(string)
+    topology      = list(string)
+    labels        = optional(map(string))
     taints = optional(object({
       key    = string
       value  = string

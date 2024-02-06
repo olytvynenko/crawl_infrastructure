@@ -16,9 +16,9 @@ spec:
 %{ endfor ~}
 %{ endif ~}
   requirements:
-    - key: karpenter.k8s.aws/instance-family
+    - key: node.kubernetes.io/instance-type
       operator: In
-      values: ${jsonencode(instance-family)}
+      values: ${jsonencode(instance-type)}
     - key: "karpenter.sh/capacity-type"
       operator: In
       values: ["spot"]

@@ -10,6 +10,12 @@ variable "cluster_name" {
   default     = "linxact"
 }
 
+variable "cluster_level" {
+  description = "Cluster level, defining typical instance size"
+  type        = string
+  default     = "inst4"
+}
+
 variable "vpc_name" {
   description = "VPC name"
   type        = string
@@ -51,6 +57,15 @@ variable "clusters" {
     inst16 = list(string)
   }))
   default = {
+    "default" = {
+      "create" = true
+      "region" = "us-east-1"
+      "name"   = "linxact-nv"
+      "azs"    = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
+      "inst4"  = []
+      "inst8"  = []
+      "inst16" = []
+    },
     "nv" = {
       "create" = true
       "region" = "us-east-1"
@@ -97,11 +112,11 @@ variable "karpenter_chart_version" {
 
 variable "karpenter_provisioner" {
   type = object({
-    name            = string
-    architectures   = list(string)
-    instance-family = list(string)
-    topology        = list(string)
-    labels          = optional(map(string))
+    name          = string
+    architectures = list(string)
+    instance-type = list(string)
+    topology      = list(string)
+    labels        = optional(map(string))
     taints = optional(object({
       key    = string
       value  = string

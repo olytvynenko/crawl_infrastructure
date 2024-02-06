@@ -17,17 +17,6 @@ resource "random_string" "suffix" {
   special = false
 }
 
-resource "null_resource" "merge_kubeconfig" {
-  count      = module.eks.cluster_name != "" ? 1 : 0
-  depends_on = [module.eks.cluster_id]
-  triggers = {
-    always = timestamp()
-  }
-  provisioner "local-exec" {
-    command = "aws eks update-kubeconfig --region ${var.region} --name ${local.cluster_name} --alias ${local.cluster_name}-${var.region}"
-  }
-}
-
 
 
 

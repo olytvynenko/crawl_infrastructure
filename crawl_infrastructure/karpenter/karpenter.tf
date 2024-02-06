@@ -62,12 +62,12 @@ resource "helm_release" "karpenter" {
 
 resource "kubectl_manifest" "karpenter_provisioner" {
   yaml_body = templatefile("${path.module}/configs/karpenter-provisioner.yaml.tmpl", {
-    name            = var.karpenter_provisioner.name
-    architectures   = var.karpenter_provisioner.architectures
-    instance-family = var.karpenter_provisioner.instance-family
-    topology        = var.karpenter_provisioner.topology
-    taints          = var.karpenter_provisioner.taints
-    labels          = var.karpenter_provisioner.labels
+    name          = var.karpenter_provisioner.name
+    architectures = var.karpenter_provisioner.architectures
+    instance-type = var.karpenter_provisioner.instance-type
+    topology      = var.karpenter_provisioner.topology
+    taints        = var.karpenter_provisioner.taints
+    labels        = var.karpenter_provisioner.labels
   })
   depends_on = [
     helm_release.karpenter

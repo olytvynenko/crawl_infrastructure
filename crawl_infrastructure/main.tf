@@ -44,9 +44,21 @@ module "karpenter" {
     helm = helm
   }
   karpenter_provisioner = {
-    name            = "default"
-    architectures   = ["arm64"]
-    instance-family = local.env[terraform.workspace]["inst4"]
-    topology        = local.env[terraform.workspace]["azs"]
+    name          = "default"
+    architectures = ["arm64"]
+    instance-type = local.env[terraform.workspace][var.cluster_level]
+    topology      = local.env[terraform.workspace]["azs"]
   }
 }
+
+resource "null_resource" "merge_kubeconfig" {
+  count      = module.cluster.cluster_name != "" ? 1 : 0
+  depends_on = [module.cluster.cluster_id]
+  triggers = {
+    always = timestamp()
+  }
+  provisioner "local-exec" {
+    command = "aws eks update-kubeconfig --region ${var.region} --name ${module.cluster.cluster_name} --alias ${module.cluster.cluster_name}-${var.region}"
+  }
+}
+
