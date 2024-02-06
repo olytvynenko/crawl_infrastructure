@@ -37,30 +37,7 @@ variable "create_eks" {
   default = false
 }
 
-variable "inst4" {
-  description = "Normal instances"
-  type        = list(string)
-  default     = ["t4g.medium", "m6g.medium", "m7g.medium", "m6gd.medium"]
-}
-
-variable "inst8" {
-  description = "Normal instances"
-  type        = list(string)
-  default     = ["r7g.medium", "r6g.medium", "r6gd.medium", "x2gd.medium", "r7gd.medium"]
-}
-
-variable "inst16" {
-  description = "Normal instances"
-  type        = list(string)
-  default     = ["r7g.large"]
-}
-
 variable "azs" {
   type    = list(string)
   default = []
-}
-
-variable "inst" {
-  type    = number
-  default = 4
 }

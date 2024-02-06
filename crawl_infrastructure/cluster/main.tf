@@ -12,11 +12,6 @@ locals {
   cluster_name = var.cluster_name
 }
 
-resource "random_string" "suffix" {
-  length  = 8
-  special = false
-}
-
 
 
 

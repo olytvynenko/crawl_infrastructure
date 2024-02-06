@@ -11,6 +11,7 @@ locals {
       azs                 = var.clusters[zone].azs
       inst4               = var.clusters[zone].inst4
       inst8               = var.clusters[zone].inst8
+      inst16              = var.clusters[zone].inst16
       repository_username = data.aws_ecrpublic_authorization_token.token.user_name
       repository_password = data.aws_ecrpublic_authorization_token.token.password
     }
@@ -25,8 +26,6 @@ module "cluster" {
   cluster_name        = local.env[terraform.workspace]["cluster_name"]
   region              = local.env[terraform.workspace]["region"]
   azs                 = local.env[terraform.workspace]["azs"]
-  inst4               = local.env[terraform.workspace]["inst4"]
-  inst8               = local.env[terraform.workspace]["inst8"]
   repository_username = data.aws_ecrpublic_authorization_token.token.user_name
   repository_password = data.aws_ecrpublic_authorization_token.token.password
 }
