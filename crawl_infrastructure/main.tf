@@ -57,7 +57,7 @@ resource "null_resource" "merge_kubeconfig" {
     always = timestamp()
   }
   provisioner "local-exec" {
-    command = "aws eks update-kubeconfig --region ${var.region} --name ${module.cluster.cluster_name} --alias ${module.cluster.cluster_name}-${var.region}"
+    command = "aws eks update-kubeconfig --region ${local.env[terraform.workspace]["region"]} --name ${module.cluster.cluster_name} --alias ${module.cluster.cluster_name}-${local.env[terraform.workspace]["region"]}"
   }
 }
 

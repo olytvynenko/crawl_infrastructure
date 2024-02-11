@@ -9,7 +9,7 @@ module "karpenter" {
 
   create_iam_role      = false
   iam_role_arn         = var.iam_role_arn
-  irsa_use_name_prefix = false
+  irsa_use_name_prefix = true
 
   tags = {
     Environment = "dev"

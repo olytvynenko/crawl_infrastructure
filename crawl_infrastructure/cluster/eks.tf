@@ -6,12 +6,13 @@ module "eks" {
   cluster_name    = local.cluster_name
   cluster_version = "1.28"
 
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
+  vpc_id = module.vpc.vpc_id
+  #  subnet_ids               = module.vpc.private_subnets
+  subnet_ids               = module.vpc.public_subnets
   control_plane_subnet_ids = module.vpc.intra_subnets
 
   cluster_endpoint_public_access = true
-  cluster_enabled_log_types      = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
+  #  cluster_enabled_log_types      = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
 
   eks_managed_node_group_defaults = {
     #    ami_type = "AL2_ARM_64"
@@ -22,7 +23,7 @@ module "eks" {
     default = {
       name           = "crawl-admin"
       capacity_type  = "ON_DEMAND"
-      instance_types = ["t3.small", "t3a.small"]
+      instance_types = ["m7a.medium"]
       min_size       = 2
       max_size       = 3
       desired_size   = 2
@@ -71,6 +72,7 @@ module "eks" {
   node_security_group_tags = {
     "karpenter.sh/discovery" = local.cluster_name
   }
+
 
 }
 
