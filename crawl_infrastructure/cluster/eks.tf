@@ -7,7 +7,7 @@ module "eks" {
   cluster_version = "1.28"
 
   vpc_id = module.vpc.vpc_id
-  #  subnet_ids               = module.vpc.private_subnets
+
   subnet_ids               = module.vpc.public_subnets
   control_plane_subnet_ids = module.vpc.intra_subnets
 
@@ -15,7 +15,6 @@ module "eks" {
   #  cluster_enabled_log_types      = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
 
   eks_managed_node_group_defaults = {
-    #    ami_type = "AL2_ARM_64"
     ami_type = "AL2_x86_64"
   }
 
@@ -23,7 +22,7 @@ module "eks" {
     default = {
       name           = "crawl-admin"
       capacity_type  = "ON_DEMAND"
-      instance_types = ["m7a.medium"]
+      instance_types = ["c6a.large"]
       min_size       = 2
       max_size       = 3
       desired_size   = 2
@@ -58,7 +57,6 @@ module "eks" {
   ]
 
   aws_auth_roles = [
-    # We need to add in the Karpenter node IAM role for nodes launched by Karpenter
     {
       #      rolearn  = module.karpenter.role_arn
       username = "system:node:{{EC2PrivateDNSName}}"
