@@ -1,10 +1,10 @@
-variable "region" {
+variable "aws_region" {
   description = "AWS region"
   type        = string
   default     = "us-east-1"
 }
 
-variable "cluster_name" {
+variable "aws_cluster_name" {
   description = "Cluster name"
   type        = string
   default     = "linxact"

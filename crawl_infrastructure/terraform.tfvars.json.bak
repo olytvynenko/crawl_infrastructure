@@ -1,5 +1,5 @@
 {
-  "karpenter_chart_version": "v0.32.6",
+  "karpenter_chart_version": "v0.32.10",
   "karpenter_provisioner": {
     "name": "default",
     "architectures": [

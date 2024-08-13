@@ -1,44 +1,28 @@
-# Copyright (c) HashiCorp, Inc.
-# SPDX-License-Identifier: MPL-2.0
-
 terraform {
-
-  cloud {
-    organization = "Linxact"
-    workspaces {
-      name = "learn-terraform-eks"
-    }
-  }
 
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.7.0"
+      source = "hashicorp/aws"
     }
 
     random = {
-      source  = "hashicorp/random"
-      version = "~> 3.5.1"
+      source = "hashicorp/random"
     }
 
     tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0.4"
+      source = "hashicorp/tls"
     }
 
     cloudinit = {
-      source  = "hashicorp/cloudinit"
-      version = "~> 2.3.2"
+      source = "hashicorp/cloudinit"
     }
 
     kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.25.2"
+      source = "hashicorp/kubernetes"
     }
 
     helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.12.1"
+      source = "hashicorp/helm"
     }
 
     kubectl = {
@@ -48,6 +32,5 @@ terraform {
 
   }
 
-  required_version = "~> 1.3"
 }
 

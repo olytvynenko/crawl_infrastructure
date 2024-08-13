@@ -1,10 +1,14 @@
 module "eks" {
 
-  source  = "terraform-aws-modules/eks/aws"
-  version = "19.15.3"
-
+  source          = "terraform-aws-modules/eks/aws"
+  version         = "~> v20.0"
   cluster_name    = local.cluster_name
-  cluster_version = "1.28"
+  cluster_version = "1.30"
+
+  # adding for API_AND_CONFIG_MAP
+  authentication_mode = "API_AND_CONFIG_MAP"
+
+  enable_cluster_creator_admin_permissions = true
 
   vpc_id = module.vpc.vpc_id
 
@@ -13,6 +17,8 @@ module "eks" {
 
   cluster_endpoint_public_access = true
   #  cluster_enabled_log_types      = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
+  cluster_enabled_log_types   = []
+  create_cloudwatch_log_group = false
 
   eks_managed_node_group_defaults = {
     ami_type = "AL2_x86_64"
@@ -42,30 +48,11 @@ module "eks" {
     }
   }
 
-  cluster_identity_providers = {
-    sts = {
-      client_id = "sts.amazonaws.com"
-    }
-  }
-
-  aws_auth_users = [
-    {
-      userarn  = "arn:aws:iam::411623750878:user/olexiy"
-      username = "olexiy"
-      groups   = ["system:masters"]
-    }
-  ]
-
-  aws_auth_roles = [
-    {
-      #      rolearn  = module.karpenter.role_arn
-      username = "system:node:{{EC2PrivateDNSName}}"
-      groups = [
-        "system:bootstrappers",
-        "system:nodes",
-      ]
-    },
-  ]
+  #   cluster_identity_providers = {
+  #     sts = {
+  #       client_id = "sts.amazonaws.com"
+  #     }
+  #   }
 
   node_security_group_tags = {
     "karpenter.sh/discovery" = local.cluster_name

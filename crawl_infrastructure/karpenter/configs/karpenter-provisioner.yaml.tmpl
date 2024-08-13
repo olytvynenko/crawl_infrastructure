@@ -19,13 +19,17 @@ spec:
     - key: "karpenter.sh/capacity-type"
       operator: In
       values: ["spot"]
+    - key: karpenter.k8s.aws/instance-category
+      operator: In
+      values: ["c", "r", "m", "x"]
     - key: "kubernetes.io/arch"
       operator: In
       values: ["arm64"]
   providerRef:
     name: default
-  consolidation:
-    enabled: false
+  disruption:
+    consolidationPolicy: WhenEmpty
+    expireAfter: 720h
+  ttlSecondsUntilExpired: 600
   kubeletConfiguration:
     maxPods: 3
-  ttlSecondsUntilExpired: 120
