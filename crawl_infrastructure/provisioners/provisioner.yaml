@@ -10,20 +10,25 @@ spec:
     resources:
       cpu: 100 # limit to 100 CPU cores
   requirements:
+    - key: kubernetes.io/arch
+      values: [ arm64 ]
+
     # Include general purpose instance families
-    - key: karpenter.k8s.aws/instance-family
-      operator: In
-      #      values: [t4g, m6g, m7g, m6gd]
-      values: [ m4, m5, m6 ]
+    #    - key: karpenter.k8s.aws/instance-family
+    #      operator: In
+    #      values: [t4g, m6g, m7g, m6gd]
+    #      values: [ m4, m5, m6 ]
     # Exclude small instance sizes
-    - key: karpenter.k8s.aws/instance-size
-      operator: In
-      values: [ large, xlarge ]
-    - key: topology.kubernetes.io/zone
-      operator: In
-      values: [ us-east-1a, us-east-1b ]
+  #    - key: karpenter.k8s.aws/instance-size
+  #      operator: In
+  #      values: [ large, xlarge ]
+  #    - key: topology.kubernetes.io/zone
+  #      operator: In
+  #      values: [ us-east-1a, us-east-1b ]
   providerRef:
     name: crawl-provider
+  #  provider:
+  #    amiFamily: "AL2"
   labels:
     karpenter: crawl
 ---

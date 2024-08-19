@@ -48,4 +48,4 @@ if __name__ == "__main__":
     # workspaces = ["oregon", "nc"]
     workspaces = ["oregon"]
     cf = ClusterFunctions('./crawl_infrastructure')
-    cf.destroy(workspaces)
+    cf.create(workspaces)

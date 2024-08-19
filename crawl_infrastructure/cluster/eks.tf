@@ -1,12 +1,11 @@
 module "eks" {
 
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> v20.0"
+  version         = "~> 20.11"
   cluster_name    = local.cluster_name
   cluster_version = "1.30"
 
-  # adding for API_AND_CONFIG_MAP
-  authentication_mode = "API_AND_CONFIG_MAP"
+  authentication_mode = "API"
 
   enable_cluster_creator_admin_permissions = true
 
@@ -58,6 +57,28 @@ module "eks" {
     "karpenter.sh/discovery" = local.cluster_name
   }
 
-
 }
+
+# resource "aws_eks_access_entry" "admin" {
+#   cluster_name  = local.cluster_name
+#   principal_arn = "arn:aws:iam::411623750878:user/olexiy"
+#   user_name = "olexiy"
+# }
+#
+# resource "aws_eks_access_policy_association" "admin" {
+#   cluster_name = local.cluster_name
+#   policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+#   principal_arn = "arn:aws:iam::411623750878:user/olexiy"
+#
+#   access_scope {
+#     type = "cluster"
+#   }
+#   # force the creation of the entry before the creation of the policy
+#   depends_on = [aws_eks_access_entry.admin]
+# }
+
+# resource "aws_eks_access_entry" "karpenter" {
+#   cluster_name  = local.cluster_name
+#   principal_arn = module
+# }
 

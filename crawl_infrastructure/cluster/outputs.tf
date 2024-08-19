@@ -49,3 +49,7 @@ output "oidc_provider_arn" {
 output "iam_role_arn" {
   value = module.eks.eks_managed_node_groups["default"].iam_role_arn
 }
+
+output "iam_role_name" {
+  value = module.eks.eks_managed_node_groups["default"].iam_role_name
+}

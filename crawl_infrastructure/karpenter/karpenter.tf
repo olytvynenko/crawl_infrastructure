@@ -1,9 +1,12 @@
 module "karpenter" {
 
-  source = "terraform-aws-modules/eks/aws//modules/karpenter"
-  #   version = "20.0"
+  source       = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version      = "~> 20.11"
   cluster_name = var.cluster_name
 
+  create_access_entry = false
+
+  # TODO: remove
   irsa_oidc_provider_arn = var.oidc_provider_arn
 
   irsa_namespace_service_accounts = ["karpenter:karpenter"]
@@ -22,6 +25,8 @@ module "karpenter" {
   enable_irsa             = true
   create_instance_profile = true
 
+  create_pod_identity_association = true
+
   tags = {
     Environment = "dev"
     Terraform   = "true"
@@ -29,7 +34,23 @@ module "karpenter" {
 
 }
 
+# resource "helm_release" "karpenter_crd" {
+#   depends_on = [module.karpenter]
+#   namespace           = "karpenter"
+#   create_namespace    = true
+#   name                = "karpenter-crd"
+#   repository          = "oci://public.ecr.aws/karpenter"
+#   chart               = "karpenter-crd"
+#   repository_username = var.repository_username
+#   repository_password = var.repository_password
+#   version             = var.karpenter_chart_version
+#   replace             = true
+#   force_update        = true
+#
+# }
+
 resource "helm_release" "karpenter" {
+  depends_on          = [module.karpenter]
   namespace           = "karpenter"
   create_namespace    = true
   name                = "karpenter"
@@ -40,12 +61,12 @@ resource "helm_release" "karpenter" {
   version             = var.karpenter_chart_version
 
   set {
-    name  = "settings.aws.clusterName"
+    name  = "settings.clusterName"
     value = var.cluster_name
   }
 
   set {
-    name  = "settings.aws.clusterEndpoint"
+    name  = "settings.clusterEndpoint"
     value = var.cluster_endpoint
   }
 
@@ -63,53 +84,52 @@ resource "helm_release" "karpenter" {
   }
 
   set {
-    name  = "settings.aws.defaultInstanceProfile"
+    name  = "settings.defaultInstanceProfile"
     value = module.karpenter.instance_profile_name
   }
 
   set {
-    name  = "settings.aws.interruptionQueueName"
+    name  = "settings.interruptionQueueName"
     value = module.karpenter.queue_name
   }
 }
 
-resource "kubectl_manifest" "karpenter_provisioner" {
-  yaml_body = templatefile("${path.module}/configs/karpenter-provisioner.yaml.tmpl", {
+# resource "kubectl_manifest" "karpenter_provisioner" {
+#   yaml_body = templatefile("${path.module}/configs/karpenter-provisioner.yaml.tmpl", {
+#     name          = var.karpenter_provisioner.name
+#     architectures = var.karpenter_provisioner.architectures
+#     instance-type = var.karpenter_provisioner.instance-type
+#     topology      = var.karpenter_provisioner.topology
+#     taints        = var.karpenter_provisioner.taints
+#     labels        = var.karpenter_provisioner.labels
+#   })
+#   depends_on = [
+#     helm_release.karpenter
+#   ]
+# }
+
+resource "kubectl_manifest" "karpenter_nodepool" {
+  yaml_body = templatefile("${path.module}/configs/karpenter-nodepool.yaml.tmpl", {
+    cluster_name  = var.cluster_name
     name          = var.karpenter_provisioner.name
     architectures = var.karpenter_provisioner.architectures
     instance-type = var.karpenter_provisioner.instance-type
     topology      = var.karpenter_provisioner.topology
     taints        = var.karpenter_provisioner.taints
     labels        = var.karpenter_provisioner.labels
+    role_name     = var.iam_role_name
   })
   depends_on = [
     helm_release.karpenter
   ]
 }
 
-resource "kubectl_manifest" "karpenter_node_template" {
-  yaml_body = <<-YAML
-    apiVersion: karpenter.k8s.aws/v1alpha1
-    kind: AWSNodeTemplate
-    metadata:
-      name: default
-    spec:
-      subnetSelector:
-        karpenter.sh/discovery: ${var.cluster_name}
-      securityGroupSelector:
-        karpenter.sh/discovery: ${var.cluster_name}
-      amiFamily: Ubuntu
-      blockDeviceMappings:
-          - deviceName: /dev/sda1
-            ebs:
-              volumeSize: 20Gi
-              volumeType: gp2
-              encrypted: false
-      tags:
-        Name: ${var.cluster_name}-node
-        created-by: "karpneter"
-        karpenter.sh/discovery: ${var.cluster_name}
-  YAML
+resource "kubectl_manifest" "karpenter_node_class" {
+  yaml_body = templatefile("${path.module}/configs/karpenter-ec2nodeclass.yaml.tmpl", {
+    cluster_name = var.cluster_name
+    #     role_name     = split("/", var.iam_role_arn)[1]
+    role_name = var.iam_role_name
+  })
   depends_on = [
     helm_release.karpenter
   ]

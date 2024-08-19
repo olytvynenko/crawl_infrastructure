@@ -14,6 +14,10 @@ variable "iam_role_arn" {
   type = string
 }
 
+variable "iam_role_name" {
+  type = string
+}
+
 variable "repository_username" {
   type = string
 }
