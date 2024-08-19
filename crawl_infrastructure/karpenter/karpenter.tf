@@ -11,18 +11,12 @@ module "karpenter" {
 
   irsa_namespace_service_accounts = ["karpenter:karpenter"]
 
-  # 19 > 20
-  #   create_iam_role      = false
   create_node_iam_role = false
 
-  # 19 > 20
   node_iam_role_arn = var.iam_role_arn
 
-  # 19 > 20
-  # irsa_use_name_prefix = true
+  enable_irsa = true
 
-  # 19 > 20
-  enable_irsa             = true
   create_instance_profile = true
 
   create_pod_identity_association = true
@@ -94,20 +88,6 @@ resource "helm_release" "karpenter" {
   }
 }
 
-# resource "kubectl_manifest" "karpenter_provisioner" {
-#   yaml_body = templatefile("${path.module}/configs/karpenter-provisioner.yaml.tmpl", {
-#     name          = var.karpenter_provisioner.name
-#     architectures = var.karpenter_provisioner.architectures
-#     instance-type = var.karpenter_provisioner.instance-type
-#     topology      = var.karpenter_provisioner.topology
-#     taints        = var.karpenter_provisioner.taints
-#     labels        = var.karpenter_provisioner.labels
-#   })
-#   depends_on = [
-#     helm_release.karpenter
-#   ]
-# }
-
 resource "kubectl_manifest" "karpenter_nodepool" {
   yaml_body = templatefile("${path.module}/configs/karpenter-nodepool.yaml.tmpl", {
     cluster_name  = var.cluster_name
@@ -136,8 +116,6 @@ resource "kubectl_manifest" "karpenter_node_class" {
 }
 
 output "karpenter_irsa_arn" {
-  # 19 > 20
-  # value = module.karpenter.irsa_arn
   value = module.karpenter.iam_role_arn
 }
 
@@ -150,7 +128,5 @@ output "karpenter_sqs_queue_name" {
 }
 
 output "role_arn" {
-  # 19 > 20
-  #   value = module.karpenter.role_arn
   value = module.karpenter.node_iam_role_arn
 }
