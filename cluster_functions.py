@@ -1,7 +1,7 @@
 from python_terraform import *
 from exceptions import ParameterValidationError
 from classes import InstanceLevel
-import json
+import json, os
 
 
 class ClusterFunctions:
@@ -42,10 +42,14 @@ class ClusterFunctions:
                 fw.write(json.dumps(variables, indent=4))
             subprocess.check_output(['terraform', 'apply', '-auto-approve'], cwd=self.working_directory)
 
+\
 
 if __name__ == "__main__":
-    # workspaces = ["ohio", "oregon", "nc", "nv"]
-    # workspaces = ["oregon", "nc"]
-    workspaces = ["oregon"]
+    # workspaces = ["nc", "nv", "ohio"]
     cf = ClusterFunctions('./crawl_infrastructure')
-    cf.create(workspaces)
+    workspaces = str.split(os.environ['clusters'], ',')
+    action = os.environ['action']
+    if action == 'create':
+        cf.create(workspaces)
+    elif action == 'destroy':
+        cf.destroy(workspaces)

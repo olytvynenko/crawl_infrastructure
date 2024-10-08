@@ -3,6 +3,8 @@ kind: EC2NodeClass
 metadata:
   name: default
 spec:
+  kubelet:
+      maxPods: 3
   subnetSelectorTerms:
     - tags:
         karpenter.sh/discovery: ${cluster_name}
@@ -10,18 +12,20 @@ spec:
     - tags:
         karpenter.sh/discovery: ${cluster_name}
   role: ${role_name}
-  amiFamily: AL2
+#  amiFamily: AL2023
   amiSelectorTerms:
-      - id: ami-04d00324ebf262399
-      - id: ami-03513159c48355642
-  blockDeviceMappings:
-  - deviceName: /dev/sda1
-    rootVolume: true
-    ebs:
-      volumeSize: 20Gi
-      volumeType: gp3
-      encrypted: false
-      deleteOnTermination: true
+      - alias: al2023@latest # Amazon Linux 2023
+#  amiSelectorTerms:
+#      - id: ami-04d00324ebf262399
+#      - id: ami-03513159c48355642
+#  blockDeviceMappings:
+#  - deviceName: /dev/sda1
+#    rootVolume: true
+#    ebs:
+#      volumeSize: 20Gi
+#      volumeType: gp3
+#      encrypted: false
+#      deleteOnTermination: true
   tags:
     Name: ${cluster_name}-node
     created-by: "karpneter"

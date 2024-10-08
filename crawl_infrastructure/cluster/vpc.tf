@@ -12,8 +12,8 @@ module "vpc" {
   azs = length(var.azs) != 0 ? var.azs : data.aws_availability_zones.available.names
 
   #  intra_subnets = []
-  #  public_subnets = ["172.31.0.0/20", "172.31.16.0/20", "172.31.32.0/20", "172.31.48.0/20"]
-  public_subnets = ["172.31.0.0/20", "172.31.16.0/20"]
+  public_subnets = ["172.31.0.0/20", "172.31.16.0/20", "172.31.32.0/20", "172.31.48.0/20"]
+  #   public_subnets = ["172.31.0.0/20", "172.31.16.0/20"]
 
   public_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"

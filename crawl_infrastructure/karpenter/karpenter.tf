@@ -1,12 +1,11 @@
 module "karpenter" {
 
   source       = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version      = "~> 20.11"
+  version = "~> 20.24"
   cluster_name = var.cluster_name
 
   create_access_entry = false
 
-  # TODO: remove
   irsa_oidc_provider_arn = var.oidc_provider_arn
 
   irsa_namespace_service_accounts = ["karpenter:karpenter"]
@@ -107,7 +106,6 @@ resource "kubectl_manifest" "karpenter_nodepool" {
 resource "kubectl_manifest" "karpenter_node_class" {
   yaml_body = templatefile("${path.module}/configs/karpenter-ec2nodeclass.yaml.tmpl", {
     cluster_name = var.cluster_name
-    #     role_name     = split("/", var.iam_role_arn)[1]
     role_name = var.iam_role_name
   })
   depends_on = [

@@ -1,9 +1,9 @@
 module "eks" {
 
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.11"
+  version         = "~> 20.24"
   cluster_name    = local.cluster_name
-  cluster_version = "1.30"
+  cluster_version = "1.31"
 
   authentication_mode = "API"
 
@@ -15,21 +15,23 @@ module "eks" {
   control_plane_subnet_ids = module.vpc.intra_subnets
 
   cluster_endpoint_public_access = true
-  cluster_enabled_log_types      = []
   create_cloudwatch_log_group    = false
-  #  cluster_enabled_log_types      = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
+  cluster_enabled_log_types = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
+  #   cluster_enabled_log_types      = []
 
   eks_managed_node_group_defaults = {
-    ami_type = "AL2_x86_64"
+    ami_type = "AL2023_x86_64_STANDARD"
   }
+
+  #   eks_managed_node_groups = {}
 
   eks_managed_node_groups = {
     default = {
       name           = "crawl-admin"
       capacity_type  = "ON_DEMAND"
-      instance_types = ["c6a.large"]
+      instance_types = ["m7i.large"]
       min_size       = 2
-      max_size       = 3
+      max_size = 2
       desired_size   = 2
       taints = [
         {

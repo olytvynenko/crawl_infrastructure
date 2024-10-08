@@ -5,8 +5,10 @@ metadata:
 spec:
   template:
     spec:
-        kubelet:
-          maxPods: 3
+        disruption:
+          expireAfter: 10000s
+          consolidationPolicy: WhenEmpty
+          consolidateAfter: 10s
         nodeClassRef:
           group: karpenter.k8s.aws
           kind: EC2NodeClass
@@ -20,7 +22,7 @@ spec:
             values: ["t", "c", "r", "m", "x"]
           - key: karpenter.k8s.aws/instance-size
             operator: In
-            values: ["small", "medium", "large"]
+            values: ["small", "medium", "large", "xlarge"]
         #  - key: "karpenter.k8s.aws/instance-memory"
         #    operator: Lt
         #    values: ["2500"]
@@ -30,6 +32,9 @@ spec:
           - key: "kubernetes.io/arch"
             operator: In
             values: ["arm64"]
+          - key: kubernetes.io/os
+            operator: In
+            values: ["linux"]
 %{ if taints != null ~}
         taints:
         - key: ${taints.key}
