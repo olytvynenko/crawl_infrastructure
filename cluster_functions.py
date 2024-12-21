@@ -42,7 +42,6 @@ class ClusterFunctions:
                 fw.write(json.dumps(variables, indent=4))
             subprocess.check_output(['terraform', 'apply', '-auto-approve'], cwd=self.working_directory)
 
-\
 
 if __name__ == "__main__":
     # workspaces = ["nc", "nv", "ohio"]
