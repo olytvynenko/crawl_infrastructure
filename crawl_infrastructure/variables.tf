@@ -47,6 +47,7 @@ variable "recrawl_enhanced_instances" {
 }
 
 variable "clusters" {
+  description = "Map of cluster workspaces and their settings"
   type = map(object({
     create = bool
     region = string
@@ -58,49 +59,49 @@ variable "clusters" {
   }))
   default = {
     "default" = {
-      "create" = true
-      "region" = "us-east-1"
-      "name"   = "linxact-nv"
-      "azs"    = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
-      "inst4"  = []
-      "inst8"  = []
-      "inst16" = []
+      create = true
+      region = "us-east-1"
+      name   = "linxact-nv"
+      azs = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
+      inst4 = []
+      inst8 = []
+      inst16 = []
     },
     "nv" = {
-      "create" = true
-      "region" = "us-east-1"
-      "name"   = "linxact-nv"
-      "azs"    = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
-      "inst4"  = []
-      "inst8"  = []
-      "inst16" = []
+      create = true
+      region = "us-east-1"
+      name   = "linxact-nv"
+      azs = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
+      inst4 = []
+      inst8 = []
+      inst16 = []
     },
     "ohio" = {
-      "create" = true
-      "region" = "us-east-2"
-      "name"   = "linxact-oh"
-      "azs"    = ["us-east-2a", "us-east-2b", "us-east-2c"]
-      "inst4"  = []
-      "inst8"  = []
-      "inst16" = []
+      create = true
+      region = "us-east-2"
+      name   = "linxact-oh"
+      azs = ["us-east-2a", "us-east-2b", "us-east-2c"]
+      inst4 = []
+      inst8 = []
+      inst16 = []
     },
     "oregon" = {
-      "create" = true
-      "region" = "us-west-2"
-      "name"   = "linxact-or"
-      "azs"    = ["us-west-2a", "us-west-2b", "us-west-2c", "us-west-2d"]
-      "inst4"  = []
-      "inst8"  = []
-      "inst16" = []
+      create = true
+      region = "us-west-2"
+      name   = "linxact-or"
+      azs = ["us-west-2a", "us-west-2b", "us-west-2c", "us-west-2d"]
+      inst4 = []
+      inst8 = []
+      inst16 = []
     },
     "nc" = {
-      "create" = true
-      "region" = "us-west-1"
-      "name"   = "linxact-nc"
-      "azs"    = ["us-west-1b", "us-west-1c"]
-      "inst4"  = []
-      "inst8"  = []
-      "inst16" = []
+      create = true
+      region = "us-west-1"
+      name   = "linxact-nc"
+      azs = ["us-west-1b", "us-west-1c"]
+      inst4 = []
+      inst8 = []
+      inst16 = []
     },
   }
 }
@@ -111,6 +112,7 @@ variable "karpenter_chart_version" {
 }
 
 variable "karpenter_provisioner" {
+  description = "Settings for the Karpenter Provisioner"
   type = object({
     name          = string
     architectures = list(string)
@@ -123,4 +125,24 @@ variable "karpenter_provisioner" {
       effect = string
     }))
   })
+}
+
+##########################
+# Terraform Backend Inputs
+##########################
+
+variable "state_bucket_name" {
+  description = "Name of the S3 bucket to store Terraform state"
+  type        = string
+}
+
+variable "lock_table_name" {
+  description = "Name of the DynamoDB table for Terraform state locks"
+  type        = string
+}
+
+variable "backend_prefix" {
+  description = "Key prefix in the S3 bucket for this project’s state files (e.g. \"eks\")"
+  type        = string
+  default     = "eks"
 }
