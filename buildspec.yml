@@ -1,0 +1,36 @@
+version: 0.2
+
+env:
+  variables:
+    TERRAFORM_VERSION: "1.7.4"          # pin whatever you need
+phases:
+  install:
+    runtime-versions:
+      python: 3.11                      # AL2 “standard:7.0” image
+    commands:
+      - echo ">> install Terraform"
+      - curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o tf.zip
+      - unzip -q tf.zip && mv terraform /usr/local/bin/
+      - terraform -version
+      - echo ">> install Python deps"
+      - pip install --no-cache-dir python-terraform
+      # pip install -r requirements.txt   # if you have more deps
+  pre_build:
+    commands:
+      - echo ">> terraform init"
+      - terraform init \
+        -backend-config="bucket=$TF_STATE_BUCKET" \
+        -backend-config="key=$TF_STATE_KEY" \
+        -backend-config="region=$AWS_REGION" \
+        -backend-config="dynamodb_table=$TF_LOCK_TABLE" \
+        -backend-config="encrypt=true"
+  build:
+    commands:
+      - echo ">> run cluster_manager.py with ACTION=$ACTION CLUSTERS=$CLUSTERS"
+      - python cluster_manager.py
+artifacts:
+  files:
+    - '**/*.log'
+cache:
+  paths:
+    - '/root/.terraform/**/*'

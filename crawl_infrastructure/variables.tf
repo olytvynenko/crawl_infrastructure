@@ -131,6 +131,12 @@ variable "karpenter_provisioner" {
 # Terraform Backend Inputs
 ##########################
 
+variable "region" {
+  type        = string
+  description = "AWS region for state bucket and locks"
+  default     = "us-east-1"
+}
+
 variable "state_bucket_name" {
   description = "Name of the S3 bucket to store Terraform state"
   type        = string

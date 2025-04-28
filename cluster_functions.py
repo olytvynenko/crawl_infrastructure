@@ -1,7 +1,8 @@
 from python_terraform import *
-from exceptions import ParameterValidationError
 from classes import InstanceLevel
 import json, os
+
+from exceptions import ParameterValidationError
 
 
 class ClusterFunctions:
