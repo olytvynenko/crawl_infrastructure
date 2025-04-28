@@ -23,6 +23,7 @@ phases:
   build:
     commands:
       - echo ">> run cluster_manager.py with ACTION=$ACTION CLUSTERS=$CLUSTERS"
+      - cd ..
       - python cluster_manager.py
 artifacts:
   files:
