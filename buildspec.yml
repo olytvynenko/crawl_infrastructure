@@ -18,6 +18,7 @@ phases:
   pre_build:
     commands:
       - echo ">> terraform init"
+      - cd crawl_infrastructure
       - terraform init
   build:
     commands:
