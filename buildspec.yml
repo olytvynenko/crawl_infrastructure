@@ -18,12 +18,7 @@ phases:
   pre_build:
     commands:
       - echo ">> terraform init"
-      - terraform init \
-        -backend-config="bucket=$TF_STATE_BUCKET" \
-        -backend-config="key=$TF_STATE_KEY" \
-        -backend-config="region=$AWS_REGION" \
-        -backend-config="dynamodb_table=$TF_LOCK_TABLE" \
-        -backend-config="encrypt=true"
+      - terraform init
   build:
     commands:
       - echo ">> run cluster_manager.py with ACTION=$ACTION CLUSTERS=$CLUSTERS"
