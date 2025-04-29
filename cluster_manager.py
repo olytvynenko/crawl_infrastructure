@@ -27,7 +27,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable, List
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -76,10 +75,13 @@ class ClusterManager:
         _run(["terraform", self._chdir_flag, *args])
 
     def _workspace_select_or_create(self, name: str):
-        if self._tf("workspace", "select", name):
-            return
-        logging.info("Workspace '%s' missing – creating", name)
-        self._tf("workspace", "new", name)
+        """Select the workspace; create it if it isn’t there yet."""
+        try:
+            self._tf("workspace", "select", name)
+            logging.info("Selected workspace '%s'", name)
+        except RuntimeError:
+            logging.info("Workspace '%s' missing – creating", name)
+            self._tf("workspace", "new", name)
 
     # ------------- public actions -------------------------------------------------------
     def plan(self, workspaces: Iterable[str]):
