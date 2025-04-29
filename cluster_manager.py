@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
-"""cluster_manager.py
+"""cluster_manager.py – run Terraform inside ./crawl_infrastructure
 
-Runs Terraform *inside* the `crawl_infrastructure/` directory no matter where
-this script is launched from.  Supported actions (via env‑vars):
+NO automatic copy of *terraform.tfvars.json.bak*.
+The script assumes a valid **terraform.tfvars.json** already exists alongside
+your *.tf* files. If it is missing, the run fails fast with a clear error.
 
-* **ACTION**   – `plan` | `create` | `destroy` | `resize`
-* **CLUSTERS** – comma‑separated list of workspace names
-* **LEVEL**    – Instance level for `resize`
-
-The script always invokes Terraform as
-
-```bash
-terraform -chdir=<repo‑root>/crawl_infrastructure …
-```
-
-so you never worry about `cd`.
+Env‑vars
+--------
+ACTION   – create | plan | destroy | resize
+CLUSTERS – comma‑separated workspace list
+LEVEL    – inst4 | inst8 | inst16 (required for resize)
 """
 from __future__ import annotations
 
@@ -27,12 +22,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable, List
 
-# ---------------------------------------------------------------------------
+
+# ─────────────────────────────────────────────────────────────────────────────
 # helpers
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 
 class ParameterValidationError(ValueError):
-    """Raised when a required argument is missing or invalid."""
+    """Raised on missing or invalid user input."""
 
 
 class InstanceLevel(str, Enum):
@@ -50,107 +46,97 @@ class InstanceLevel(str, Enum):
             ) from exc
 
 
-def _run(cmd: List[str]) -> None:  # runs with inherited cwd
-    logging.debug("$ %s", " ".join(cmd))
-    proc = subprocess.run(cmd, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"command {' '.join(cmd)} failed with code {proc.returncode}")
-
-
-# ---------------------------------------------------------------------------
-# main driver
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# Cluster manager
+# ─────────────────────────────────────────────────────────────────────────────
 
 class ClusterManager:
     def __init__(self, working_directory: str | Path):
         self.wd = Path(working_directory).resolve()
         if not self.wd.is_dir():
-            raise ParameterValidationError(f"working directory '{self.wd}' does not exist")
-        self._chdir_flag = f"-chdir={self.wd}"
-        logging.debug("Terraform chdir flag: %s", self._chdir_flag)
+            raise ParameterValidationError(f"working directory '{self.wd}' not found")
+        self._chdir = f"-chdir={self.wd}"
+        logging.debug("Terraform chdir flag: %s", self._chdir)
 
-    # ------------- terraform wrappers ---------------------------------------------------
-    def _tf(self, *args: str):
-        """Call Terraform with the `-chdir` flag pre‑applied."""
-        _run(["terraform", self._chdir_flag, *args])
+    # ------------- internal runners -----------------------------------------
+    def _run(self, *args: str):
+        cmd = ["terraform", self._chdir, *args]
+        logging.debug("$ %s", " ".join(cmd))
+        result = subprocess.run(cmd, text=True)
+        if result.returncode != 0:
+            raise RuntimeError("terraform %s failed (exit %d)" % (args[0], result.returncode))
 
-    def _workspace_select_or_create(self, name: str):
-        """Select the workspace; create it if it isn’t there yet."""
-        try:
-            self._tf("workspace", "select", name)
-            logging.info("Selected workspace '%s'", name)
-        except RuntimeError:
-            logging.info("Workspace '%s' missing – creating", name)
-            self._tf("workspace", "new", name)
+    def _workspace_select_or_create(self, ws: str):
+        if self._run("workspace", "select", ws) is None:
+            logging.info("Selected workspace '%s'", ws)
+            return
+        logging.info("Workspace '%s' missing – creating", ws)
+        self._run("workspace", "new", ws)
 
-    # ------------- public actions -------------------------------------------------------
-    def plan(self, workspaces: Iterable[str]):
-        for ws in workspaces:
+    # ------------- public actions -------------------------------------------
+    def plan(self, wss: Iterable[str]):
+        for ws in wss:
             self._workspace_select_or_create(ws)
-            self._tf("plan")
+            self._run("plan")
 
-    def create(self, workspaces: Iterable[str]):
-        for ws in workspaces:
+    def create(self, wss: Iterable[str]):
+        for ws in wss:
             self._workspace_select_or_create(ws)
-            self._tf("apply", "-auto-approve")
+            self._run("apply", "-auto-approve")
 
-    def destroy(self, workspaces: Iterable[str]):
-        for ws in workspaces:
+    def destroy(self, wss: Iterable[str]):
+        for ws in wss:
             self._workspace_select_or_create(ws)
-            self._tf("destroy", "-auto-approve")
+            self._run("destroy", "-auto-approve")
 
-    def resize(self, workspaces: Iterable[str], level: InstanceLevel):
-        for ws in workspaces:
+    def resize(self, wss: Iterable[str], level: InstanceLevel):
+        for ws in wss:
             self._workspace_select_or_create(ws)
-            self._set_workers_level(level)
-            self._tf("apply", "-auto-approve")
+            self._update_level(level)
+            self._run("apply", "-auto-approve")
 
-    # ------------- internals -----------------------------------------------------------
-    def _set_workers_level(self, level: InstanceLevel):
-        backup_file = self.wd / "terraform.tfvars.json.bak"
-        live_file = self.wd / "terraform.tfvars.json"
-        if not backup_file.exists():
-            raise ParameterValidationError(f"{backup_file} not found – cannot resize")
-        with backup_file.open() as fp:
-            variables = json.load(fp)
-        variables["cluster_level"] = level.value
-        live_file.write_text(json.dumps(variables, indent=2))
+    # ------------- helpers --------------------------------------------------
+    def _update_level(self, level: InstanceLevel):
+        tfvars = self.wd / "terraform.tfvars.json"
+        if not tfvars.exists():
+            raise ParameterValidationError(f"{tfvars} missing – cannot resize")
+        with tfvars.open() as fp:
+            data = json.load(fp)
+        data["cluster_level"] = level.value
+        tfvars.write_text(json.dumps(data, indent=2))
         logging.info("cluster_level set to %s", level.value)
 
 
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 # CLI entry‑point
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 
-def _parse_env_list(name: str) -> List[str]:
-    val = os.environ.get(name)
+def _csv(name: str) -> List[str]:
+    val = os.getenv(name)
     if not val:
-        raise ParameterValidationError(f"environment variable '{name}' is required")
-    return [item.strip() for item in val.split(',') if item.strip()]
+        raise ParameterValidationError(f"env var '{name}' missing")
+    return [x.strip() for x in val.split(',') if x.strip()]
 
 
-def main() -> None:
-    logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+def main():
+    logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
 
-    action = (os.environ.get("ACTION") or os.environ.get("action") or "").lower()
+    action = (os.getenv("ACTION") or "").lower()
     if not action:
-        raise ParameterValidationError("ACTION environment variable not set")
+        raise ParameterValidationError("ACTION env var not set")
 
-    clusters = _parse_env_list("CLUSTERS" if "CLUSTERS" in os.environ else "clusters")
-
+    clusters = _csv("CLUSTERS")
     mgr = ClusterManager("./crawl_infrastructure")
 
     if action in {"create", "apply"}:
         mgr.create(clusters)
-    elif action == "destroy":
-        mgr.destroy(clusters)
     elif action == "plan":
         mgr.plan(clusters)
+    elif action == "destroy":
+        mgr.destroy(clusters)
     elif action == "resize":
-        level_str = os.environ.get("LEVEL") or os.environ.get("level")
-        if not level_str:
-            raise ParameterValidationError("LEVEL env‑var required when ACTION=resize")
-        mgr.resize(clusters, InstanceLevel.from_str(level_str))
+        level = InstanceLevel.from_str(os.getenv("LEVEL", ""))
+        mgr.resize(clusters, level)
     else:
         raise ParameterValidationError(f"unsupported ACTION '{action}'")
 
