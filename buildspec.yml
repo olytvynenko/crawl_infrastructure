@@ -2,11 +2,12 @@ version: 0.2
 
 env:
   variables:
-    TERRAFORM_VERSION: "1.7.4"          # pin whatever you need
+    TERRAFORM_VERSION: "1.7.4"
+
 phases:
   install:
     runtime-versions:
-      python: 3.11                      # AL2 “standard:7.0” image
+      python: 3.11
     commands:
       - echo ">> install Terraform"
       - curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o tf.zip
@@ -14,16 +15,14 @@ phases:
       - terraform -version
       - echo ">> install Python deps"
       - pip install --no-cache-dir python-terraform
-      # pip install -r requirements.txt   # if you have more deps
   pre_build:
     commands:
       - echo ">> terraform init"
-      - cd crawl_infrastructure
-      - terraform init
+      - terraform -chdir=crawl_infrastructure init
   build:
     commands:
       - echo ">> run cluster_manager.py with ACTION=$ACTION CLUSTERS=$CLUSTERS"
-      - cd ..
+      - ls -alR crawl_infrastructure | head -20   # ← added debug listing
       - python cluster_manager.py
 artifacts:
   files:

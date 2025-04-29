@@ -118,14 +118,16 @@ def _csv(name: str) -> List[str]:
 
 
 def main():
-    logging.basicConfig(level=os.getenv("LOGLEVEL", "DEBUG"))
+    logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
 
     action = (os.getenv("ACTION") or "").lower()
     if not action:
         raise ParameterValidationError("ACTION env var not set")
 
     clusters = _csv("CLUSTERS")
-    mgr = ClusterManager("./crawl_infrastructure")
+    # use path relative to this script to avoid double directory component
+    repo_root = Path(__file__).resolve().parent
+    mgr = ClusterManager(repo_root / "crawl_infrastructure")
 
     if action in {"create", "apply"}:
         mgr.create(clusters)
