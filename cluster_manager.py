@@ -118,7 +118,7 @@ def _csv(name: str) -> List[str]:
 
 
 def main():
-    logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
+    logging.basicConfig(level=os.getenv("LOGLEVEL", "DEBUG"))
 
     action = (os.getenv("ACTION") or "").lower()
     if not action:
