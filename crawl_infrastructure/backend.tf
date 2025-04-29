@@ -1,65 +1,24 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. State Bucket
+# 1. Existing remote-state bucket (read-only)
 # ─────────────────────────────────────────────────────────────────────────────
-resource "aws_s3_bucket" "tf_state" {
-  bucket = var.state_bucket_name
+data "aws_s3_bucket" "tf_state" {
+  bucket = "linxact-terraform-state"   # <- hard-coded because it’s immutable
 }
 
-# 2) Versioning as its own resource
-resource "aws_s3_bucket_versioning" "tf_state" {
-  bucket = aws_s3_bucket.tf_state.id
+# If you still want Terraform to manage versioning / encryption / lifecycle
+# **comment these blocks back in only after** you’ve run `terraform import`
+# for the bucket.  Otherwise, just rely on whatever settings the bucket
+# already has.
 
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# 3) Server-side encryption via its own resource
-resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state" {
-  bucket = aws_s3_bucket.tf_state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-# 4) Lifecycle rules via its own resource
-resource "aws_s3_bucket_lifecycle_configuration" "tf_state" {
-  bucket = aws_s3_bucket.tf_state.id
-
-  rule {
-    id     = "keep-latest-5-versions"
-    status = "Enabled"
-
-    noncurrent_version_expiration {
-      days = 30
-    }
-
-    noncurrent_version_transition {
-      days          = 7
-      storage_class = "GLACIER"
-    }
-  }
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Existing DynamoDB lock table (read-only)
+# ─────────────────────────────────────────────────────────────────────────────
+data "aws_dynamodb_table" "tf_locks" {
+  name = "terraform-locks"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. DynamoDB Lock Table
-# ─────────────────────────────────────────────────────────────────────────────
-resource "aws_dynamodb_table" "tf_locks" {
-  name         = var.lock_table_name
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Terraform Backend Configuration
+# 3. Backend configuration (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 terraform {
   backend "s3" {
@@ -70,4 +29,3 @@ terraform {
     encrypt        = true
   }
 }
-
