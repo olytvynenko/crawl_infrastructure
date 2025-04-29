@@ -7,6 +7,12 @@ provider "aws" {
   region = local.env[terraform.workspace]["region"]
 }
 
+# Static provider alias pointing at the state/lock region
+provider "aws" {
+  alias  = "state"
+  region = "us-east-1"
+}
+
 provider "kubernetes" {
   host                   = module.cluster.cluster_endpoint
   cluster_ca_certificate = base64decode(module.cluster.cluster_certificate_authority_data)

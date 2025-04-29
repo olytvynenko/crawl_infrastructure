@@ -2,6 +2,7 @@
 # 1. Existing remote-state bucket (read-only)
 # ─────────────────────────────────────────────────────────────────────────────
 data "aws_s3_bucket" "tf_state" {
+  provider = aws.state
   bucket = var.state_bucket_name
 }
 
@@ -14,6 +15,7 @@ data "aws_s3_bucket" "tf_state" {
 # 2. Existing DynamoDB lock table (read-only)
 # ─────────────────────────────────────────────────────────────────────────────
 data "aws_dynamodb_table" "tf_locks" {
+  provider = aws.state
   name = var.lock_table_name
 }
 
