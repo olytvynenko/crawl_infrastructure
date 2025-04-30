@@ -2,7 +2,7 @@
 #   source                    = "terraform-aws-modules/eks/aws//modules/aws-auth"
 resource "aws_eks_access_entry" "console_user" {
   cluster_name  = module.cluster.cluster_name
-  principal_arn = "arn:aws:iam::411623750878:user/olexi"
+  principal_arn = "arn:aws:iam::411623750878:user/olexiy"
 }
 
 resource "aws_eks_access_policy_association" "console_user_admin" {
