@@ -7,7 +7,7 @@ data "aws_partition" "this" {}
 # Build the policy ARN for AWSAdministratorAccess
 ###############################################################################
 locals {
-  admin_policy_arn = "arn:${data.aws_partition.this.partition}:eks::aws:cluster-access-policy/AWSAdministratorAccess"
+  admin_policy_arn = "arn:${data.aws_partition.this.partition}:eks::aws:access-policy/AWSAdministratorAccess"
 }
 
 ###############################################################################
@@ -21,6 +21,6 @@ resource "aws_eks_access_entry" "console_user" {
 resource "aws_eks_access_policy_association" "console_user_admin" {
   cluster_name  = module.cluster.cluster_name
   principal_arn = aws_eks_access_entry.console_user.principal_arn
-  policy_arn = local.admin_policy_arn      # ← use local, not data source
+  policy_arn = local.admin_policy_arn        # ← corrected ARN
   access_scope { type = "cluster" }
 }
