@@ -31,6 +31,7 @@ resource "aws_iam_role_policy_attachment" "cb_admin" {
 
 resource "aws_codebuild_project" "cluster_manager" {
   name         = "cluster-manager"
+  description = "Creates EKS clusters to run crawler jobs"
   service_role = aws_iam_role.cb_role.arn
 
   # ────────────── source (update “type” & “location” if you use Bitbucket) ─────
