@@ -7,6 +7,23 @@ module "eks" {
 
   authentication_mode = "API"
 
+  # --- ⬇️ new: authorise CodeBuild role ----------------------------
+  access_entries = {
+    codebuild = {
+      principal_arn = "arn:aws:iam::411623750878:role/codebuild-kube-jobs-service-role"
+      type = "role"
+
+      # attach a managed policy that gives full cluster access
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }     # whole cluster
+        }
+      }
+    }
+  }
+  # -----------------------------------------------------------------
+
   enable_cluster_creator_admin_permissions = true
 
   vpc_id = module.vpc.vpc_id
