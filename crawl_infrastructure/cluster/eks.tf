@@ -11,7 +11,7 @@ module "eks" {
   access_entries = {
     codebuild = {
       principal_arn = "arn:aws:iam::411623750878:role/codebuild-kube-jobs-service-role"
-      type = "role"
+      # type = "STANDARD"
 
       # attach a managed policy that gives full cluster access
       policy_associations = {
