@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""cluster_manager.py – run Terraform inside ./crawl_infrastructure
+"""
+cluster_manager.py – run Terraform inside ./crawl_infrastructure
 
-NO automatic copy of *terraform.tfvars.json.bak*.
-The script assumes a valid **terraform.tfvars.json** already exists alongside
-your *.tf* files. If it is missing, the run fails fast with a clear error.
+Configuration hierarchy
+-----------------------
+1. Environment variables
+   * ACTION    – create | plan | destroy | resize  (required)
+   * LEVEL     – inst4 | inst8 | inst16            (required for resize)
+   * CLUSTERS  – comma-separated list (fallback only)
 
-Env‑vars
---------
-ACTION   – create | plan | destroy | resize
-CLUSTERS – comma‑separated workspace list
-LEVEL    – inst4 | inst8 | inst16 (required for resize)
+2. Parameter Store
+   * /crawl/clusters   (StringList “nv,nc,ohio,oregon”)
+
+The script requires a valid **terraform.tfvars.json** in crawl_infrastructure.
 """
 from __future__ import annotations
 
@@ -19,13 +22,15 @@ import os
 import subprocess
 import sys
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List
+
+import boto3
 
 # ─────────────────────────────────────────────────────────────────────────────
 # helpers
 # ─────────────────────────────────────────────────────────────────────────────
-
 class ParameterValidationError(ValueError):
     """Raised on missing or invalid user input."""
 
@@ -46,9 +51,42 @@ class InstanceLevel(str, Enum):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Cluster manager
+# Parameter Store helper
 # ─────────────────────────────────────────────────────────────────────────────
+_ssm = boto3.client("ssm")
 
+
+@lru_cache(maxsize=32)
+def _param(name: str) -> str | None:
+    """Return parameter value or None if missing."""
+    for candidate in (f"/crawl/{name}", name):
+        try:
+            res = _ssm.get_parameter(Name=candidate, WithDecryption=True)
+            return res["Parameter"]["Value"]
+        except _ssm.exceptions.ParameterNotFound:
+            continue
+    return None
+
+
+def _clusters_from_config() -> List[str]:
+    """
+    Resolve cluster list:
+
+      1. try Parameter Store  (/crawl/clusters) – StringList
+      2. fallback to $CLUSTERS env var
+    """
+    raw = _param("clusters") or os.getenv("CLUSTERS")
+    if not raw:
+        raise ParameterValidationError(
+            "cluster list not found: set /crawl/clusters (StringList) "
+            "or CLUSTERS env var"
+        )
+    return [c.strip() for c in raw.split(",") if c.strip()]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cluster manager (unchanged core logic)
+# ─────────────────────────────────────────────────────────────────────────────
 class ClusterManager:
     def __init__(self, working_directory: str | Path):
         self.wd = Path(working_directory).resolve()
@@ -57,13 +95,13 @@ class ClusterManager:
         self._chdir = f"-chdir={self.wd}"
         logging.debug("Terraform chdir flag: %s", self._chdir)
 
-    # ------------- internal runners -----------------------------------------
+    # ---------------- internal runners --------------------------------------
     def _run(self, *args: str):
         cmd = ["terraform", self._chdir, *args]
         logging.debug("$ %s", " ".join(cmd))
         result = subprocess.run(cmd, text=True)
         if result.returncode != 0:
-            raise RuntimeError("terraform %s failed (exit %d)" % (args[0], result.returncode))
+            raise RuntimeError(f"terraform {args[0]} failed (exit {result.returncode})")
 
     def _workspace_select_or_create(self, ws: str):
         if self._run("workspace", "select", ws) is None:
@@ -72,7 +110,7 @@ class ClusterManager:
         logging.info("Workspace '%s' missing – creating", ws)
         self._run("workspace", "new", ws)
 
-    # ------------- public actions -------------------------------------------
+    # ---------------- public actions ----------------------------------------
     def plan(self, wss: Iterable[str]):
         for ws in wss:
             self._workspace_select_or_create(ws)
@@ -94,7 +132,7 @@ class ClusterManager:
             self._update_level(level)
             self._run("apply", "-auto-approve")
 
-    # ------------- helpers --------------------------------------------------
+    # ---------------- helpers ------------------------------------------------
     def _update_level(self, level: InstanceLevel):
         tfvars = self.wd / "terraform.tfvars.json"
         if not tfvars.exists():
@@ -107,16 +145,8 @@ class ClusterManager:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CLI entry‑point
+# CLI entry-point
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _csv(name: str) -> List[str]:
-    val = os.getenv(name)
-    if not val:
-        raise ParameterValidationError(f"env var '{name}' missing")
-    return [x.strip() for x in val.split(',') if x.strip()]
-
-
 def main():
     logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
 
@@ -124,8 +154,8 @@ def main():
     if not action:
         raise ParameterValidationError("ACTION env var not set")
 
-    clusters = _csv("CLUSTERS")
-    # use path relative to this script to avoid double directory component
+    clusters = _clusters_from_config()
+
     repo_root = Path(__file__).resolve().parent
     mgr = ClusterManager(repo_root / "crawl_infrastructure")
 
