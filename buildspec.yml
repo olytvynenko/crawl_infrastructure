@@ -9,6 +9,8 @@ phases:
     runtime-versions:
       python: 3.11
     commands:
+      - echo "REGION=$AWS_DEFAULT_REGION  IMAGE=$IMAGE_URI"
+      - aws sts get-caller-identity
       - echo ">> install Terraform"
       - curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o tf.zip
       - unzip -q tf.zip && mv terraform /usr/local/bin/
