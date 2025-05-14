@@ -1,5 +1,5 @@
 ##############################################################################
-# 0. Terraform & AWS provider
+# 0. Terraform core & AWS provider
 ##############################################################################
 terraform {
   required_version = ">= 1.3"
@@ -19,7 +19,7 @@ provider "aws" {
 data "aws_caller_identity" "this" {}
 
 ##############################################################################
-# 1.  S3 bucket for pipeline artifacts
+# 1. (Optional) S3 bucket if you still need it for other artifacts
 ##############################################################################
 resource "aws_s3_bucket" "pipeline_artifacts" {
   bucket        = "crawl-build-artifacts-${data.aws_caller_identity.this.account_id}"
@@ -27,231 +27,138 @@ resource "aws_s3_bucket" "pipeline_artifacts" {
 }
 
 ##############################################################################
-# 2.  CodePipeline service role
-##############################################################################
-data "aws_iam_policy_document" "pipeline_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type = "Service"
-      identifiers = ["codepipeline.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "codepipeline" {
-  name               = "crawl-build-pipeline-role"
-  assume_role_policy = data.aws_iam_policy_document.pipeline_assume.json
-}
-
-resource "aws_iam_role_policy_attachment" "pipeline_full_access" {
-  role       = aws_iam_role.codepipeline.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess"
-}
-
-resource "aws_iam_role_policy" "pipeline_codecommit_read" {
-  name = "codecommit-readonly-for-pipeline"
-  role = aws_iam_role.codepipeline.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "CodeCommitRead"
-        Effect = "Allow"
-        Action = [
-          "codecommit:Get*",
-          "codecommit:BatchGet*",
-          "codecommit:GitPull",
-
-          # needed for the Source action to create the source ZIP
-          "codecommit:UploadArchive",
-          "codecommit:GetUploadArchiveStatus"
-        ]
-        Resource = "arn:aws:codecommit:us-east-1:${data.aws_caller_identity.this.account_id}:linxact-crawler"
-      }
-    ]
-  })
-}
-
-##############################################################################
-# S3 access for the artifact bucket
-##############################################################################
-resource "aws_iam_role_policy" "pipeline_artifacts_s3" {
-  name = "codepipeline-s3-artifacts"
-  role = aws_iam_role.codepipeline.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ArtifactBucketRW"
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:GetObjectVersion",
-          "s3:GetBucketLocation"
-        ]
-        Resource = [
-          # objects inside bucket
-          "${aws_s3_bucket.pipeline_artifacts.arn}/*",
-          # (and optionally the bucket itself for GetBucketLocation)
-          aws_s3_bucket.pipeline_artifacts.arn
-        ]
-      }
-    ]
-  })
-}
-
-##############################################################################
-# CodeBuild: allow the pipeline to start builds & poll status
-##############################################################################
-locals {
-  cb_project_arns = [
-    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/cluster-manager",
-    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/crawler-arm-build",
-    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/crawler-runner",
-  ]
-}
-
-resource "aws_iam_role_policy" "pipeline_codebuild_invoke" {
-  name = "codepipeline-start-codebuild"
-  role = aws_iam_role.codepipeline.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "StartAndPollBuilds"
-        Effect = "Allow"
-        Action = [
-          "codebuild:StartBuild",
-          "codebuild:BatchGetBuilds",
-          "codebuild:BatchGetProjects"
-        ]
-        Resource = local.cb_project_arns
-      }
-    ]
-  })
-}
-
-
-##############################################################################
-# 3.  CodeBuild project names (variables)
+# 2.  CodeBuild project names as variables
 ##############################################################################
 variable "cluster_manager_project" { default = "cluster-manager" }
 variable "crawler_arm_build_project" { default = "crawler-arm-build" }
 variable "crawler_runner_project" { default = "crawler-runner" }
 
 ##############################################################################
-# 4.  CodePipeline (Source + 3 build stages + destroy)
+# 3.  IAM role for Step Functions
 ##############################################################################
-resource "aws_codepipeline" "crawl" {
-  name     = "crawl-build-only"
-  role_arn = aws_iam_role.codepipeline.arn
+locals {
+  cb_project_arns = [
+    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/${var.cluster_manager_project}",
+    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/${var.crawler_arm_build_project}",
+    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/${var.crawler_runner_project}",
+  ]
+}
 
-  artifact_store {
-    location = aws_s3_bucket.pipeline_artifacts.bucket
-    type     = "S3"
-  }
-
-  # ── Stage 0 – Source ────────────────────────────────────────────────────
-  stage {
-    name = "Source"
-
-    action {
-      name     = "FetchRepo"
-      category = "Source"
-      owner    = "AWS"
-      provider = "CodeCommit"
-      version  = "1"
-      output_artifacts = ["SourceZip"]
-
-      configuration = {
-        RepositoryName = "linxact-crawler"
-        BranchName     = "master"
-      }
+data "aws_iam_policy_document" "sfn_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type = "Service"
+      identifiers = ["states.amazonaws.com"]
     }
   }
+}
 
-  # ── Stage 1 – create clusters ──────────────────────────────────────────
-  stage {
-    name = "ClusterCreate"
+resource "aws_iam_role" "sfn_role" {
+  name               = "crawl-stepfn-role"
+  assume_role_policy = data.aws_iam_policy_document.sfn_assume.json
+}
 
-    action {
-      name     = "ClusterManagerCreate"
-      category = "Build"
-      owner    = "AWS"
-      provider = "CodeBuild"
-      version  = "1"
-      input_artifacts = ["SourceZip"]
+resource "aws_iam_role_policy" "sfn_codebuild" {
+  name = "start-codebuilds"
+  role = aws_iam_role.sfn_role.id
 
-      configuration = {
-        ProjectName = var.cluster_manager_project
-        EnvironmentVariables = jsonencode([
-          { name = "ACTION", value = "create", type = "PLAINTEXT" }
-        ])
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "codebuild:StartBuild",
+          "codebuild:BatchGetBuilds",
+          "codebuild:BatchGetProjects"
+        ],
+        Resource = local.cb_project_arns
+      },
+
+      # ───────────────── EventBridge rule for *.sync tasks ───────
+      {
+        Effect = "Allow",
+        Action = [
+          "events:PutRule",
+          "events:PutTargets",
+          "events:DescribeRule"
+        ],
+        Resource = "arn:aws:events:*:*:rule/StepFunctionsGetEventsForCodeBuildBuild*"
+      }
+
+    ]
+  })
+}
+
+##############################################################################
+# 4.  Step Functions state machine
+##############################################################################
+locals {
+  state_machine_definition = jsonencode({
+    Comment = "Create clusters → build image → run crawler → destroy clusters"
+    StartAt = "ClusterCreate"
+    States = {
+      ClusterCreate = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::codebuild:startBuild.sync"
+        Parameters = {
+          ProjectName = var.cluster_manager_project
+          EnvironmentVariablesOverride = [
+            { Name = "ACTION", Type = "PLAINTEXT", Value = "create" }
+          ]
+        }
+        Catch = [
+          { ErrorEquals = ["States.ALL"], Next = "ClusterDestroy" }
+        ]
+        Next = "CrawlerArmBuild"
+      }
+
+      CrawlerArmBuild = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::codebuild:startBuild.sync"
+        Parameters = { ProjectName = var.crawler_arm_build_project }
+        Catch = [
+          { ErrorEquals = ["States.ALL"], Next = "ClusterDestroy" }
+        ]
+        Next = "CrawlerRunner"
+      }
+
+      CrawlerRunner = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::codebuild:startBuild.sync"
+        Parameters = { ProjectName = var.crawler_runner_project }
+        Catch = [
+          { ErrorEquals = ["States.ALL"], Next = "ClusterDestroy" }
+        ]
+        Next = "ClusterDestroy"
+      }
+
+      ClusterDestroy = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::codebuild:startBuild.sync"
+        Parameters = {
+          ProjectName = var.cluster_manager_project
+          EnvironmentVariablesOverride = [
+            { Name = "ACTION", Type = "PLAINTEXT", Value = "destroy" }
+          ]
+        }
+        End = true
       }
     }
-  }
+  })
+}
 
-  # ── Stage 2 – build ARM image ──────────────────────────────────────────
-  stage {
-    name = "CrawlerArmBuild"
+resource "aws_sfn_state_machine" "crawl" {
+  name       = "crawl-build-state-machine"
+  role_arn   = aws_iam_role.sfn_role.arn
+  definition = local.state_machine_definition
+}
 
-    action {
-      name     = "CrawlerArmBuild"
-      category = "Build"
-      owner    = "AWS"
-      provider = "CodeBuild"
-      version  = "1"
-      input_artifacts = ["SourceZip"]
-
-      configuration = {
-        ProjectName = var.crawler_arm_build_project
-      }
-    }
-  }
-
-  # ── Stage 3 – run crawler job ──────────────────────────────────────────
-  stage {
-    name = "CrawlerRunner"
-
-    action {
-      name     = "CrawlerRunner"
-      category = "Build"
-      owner    = "AWS"
-      provider = "CodeBuild"
-      version  = "1"
-      input_artifacts = ["SourceZip"]
-
-      configuration = {
-        ProjectName = var.crawler_runner_project
-      }
-    }
-  }
-
-  # ── Stage 4 – destroy clusters ─────────────────────────────────────────
-  stage {
-    name = "ClusterDestroy"
-
-    action {
-      name     = "ClusterManagerDestroy"
-      category = "Build"
-      owner    = "AWS"
-      provider = "CodeBuild"
-      version  = "1"
-      input_artifacts = ["SourceZip"]
-
-      configuration = {
-        ProjectName = var.cluster_manager_project
-        EnvironmentVariables = jsonencode([
-          { name = "ACTION", value = "destroy", type = "PLAINTEXT" }
-        ])
-      }
-    }
-  }
+##############################################################################
+# 5.  Outputs
+##############################################################################
+output "state_machine_arn" {
+  value       = aws_sfn_state_machine.crawl.arn
+  description = "Run with: aws stepfunctions start-execution --state-machine-arn <ARN>"
 }
