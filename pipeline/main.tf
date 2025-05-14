@@ -101,6 +101,17 @@ locals {
     Comment = "Create clusters → build image → run crawler → destroy clusters"
     StartAt = "ClusterCreate"
     States = {
+
+      CrawlerArmBuild = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::codebuild:startBuild.sync"
+        Parameters = { ProjectName = var.crawler_arm_build_project }
+        Catch = [
+          { ErrorEquals = ["States.ALL"], Next = "ClusterDestroy" }
+        ]
+        Next = "ClusterCreate"
+      }
+
       ClusterCreate = {
         Type     = "Task"
         Resource = "arn:aws:states:::codebuild:startBuild.sync"
@@ -110,16 +121,6 @@ locals {
             { Name = "ACTION", Type = "PLAINTEXT", Value = "create" }
           ]
         }
-        Catch = [
-          { ErrorEquals = ["States.ALL"], Next = "ClusterDestroy" }
-        ]
-        Next = "CrawlerArmBuild"
-      }
-
-      CrawlerArmBuild = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::codebuild:startBuild.sync"
-        Parameters = { ProjectName = var.crawler_arm_build_project }
         Catch = [
           { ErrorEquals = ["States.ALL"], Next = "ClusterDestroy" }
         ]
