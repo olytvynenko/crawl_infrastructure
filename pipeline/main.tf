@@ -59,13 +59,15 @@ resource "aws_iam_role" "sfn_role" {
   assume_role_policy = data.aws_iam_policy_document.sfn_assume.json
 }
 
+# Extend / replace the inline policy attached to crawl-stepfn-role
 resource "aws_iam_role_policy" "sfn_codebuild" {
-  name = "start-codebuilds"
+  name = "start-codebuilds-and-events"
   role = aws_iam_role.sfn_role.id
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
+      # ---------- invoke CodeBuild & poll ----------
       {
         Effect = "Allow",
         Action = [
@@ -76,17 +78,17 @@ resource "aws_iam_role_policy" "sfn_codebuild" {
         Resource = local.cb_project_arns
       },
 
-      # ───────────────── EventBridge rule for *.sync tasks ───────
+      # ---------- allow Step Functions to create its EventBridge rule ----------
       {
-        Effect = "Allow",
+        Sid    = "EventBridgeManagedRuleForSyncTasks"
+        Effect = "Allow"
         Action = [
           "events:PutRule",
           "events:PutTargets",
           "events:DescribeRule"
-        ],
-        Resource = "arn:aws:events:*:*:rule/StepFunctionsGetEventsForCodeBuildBuild*"
+        ]
+        Resource = "*"
       }
-
     ]
   })
 }
