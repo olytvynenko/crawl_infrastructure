@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="TerraformProjectSettings">
+    <option name="toolPath" value="C:\ProgramData\chocolatey\bin\terraform.exe" />
+  </component>
   <component name="TerraformToolProjectSettings">
     <option name="myTerraformPath" value="C:\ProgramData\chocolatey\lib\terraform\tools\terraform.exe" />
   </component>
