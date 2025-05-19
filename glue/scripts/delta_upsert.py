@@ -194,9 +194,9 @@ else:
      .execute())
 
 # maintenance (optimize + vacuum)
-spark.sql(f"OPTIMIZE delta.`{DELTA_PATH}` ZORDER BY (link_root_domain)")
-spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", "false")
-spark.sql(f"VACUUM delta.`{DELTA_PATH}` RETAIN 0 HOURS")
+# spark.sql(f"OPTIMIZE delta.`{DELTA_PATH}` ZORDER BY (link_root_domain)")
+# spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", "false")
+# spark.sql(f"VACUUM delta.`{DELTA_PATH}` RETAIN 0 HOURS")
 
 # ─────────────────────────── export Parquet snapshot
 df_snapshot = spark.read.format("delta").load(DELTA_PATH)
