@@ -82,15 +82,12 @@ resource "aws_iam_policy" "glue_ssm_read" {
     Statement = [
       {
         Effect = "Allow",
-        Action = "ssm:GetParameter",
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters"
+        ],
         Resource = [
-          # exactly the three keys the script fetches
-          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/path/results",
-          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/path/dataset/delta",
-          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/import/id",
-          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/path/majestic",
-          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/path/ip_addresses",
-          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/dataset/current"
+          "arn:aws:ssm:*:${local.account_id}:parameter/crawl/*"
         ]
       }
     ]
@@ -125,7 +122,6 @@ resource "aws_iam_role_policy_attachment" "dynamodb_import_write_attach" {
   policy_arn = aws_iam_policy.dynamodb_import_write.arn
 }
 
-
 #################
 # 2. Glue job definition
 #################
@@ -142,7 +138,7 @@ resource "aws_glue_job" "job" {
   glue_version = "5.0"       # Spark 3.4 & Delta 2.x
   worker_type       = "G.2X"
   number_of_workers = 10
-  execution_class = "FLEX"      # cheaper if the job can wait in queue
+  execution_class = "FLEX"
 
   default_arguments = {
     "--s3bucket"         = var.s3_bucket
@@ -154,24 +150,15 @@ resource "aws_glue_job" "job" {
     "--deltaPath"        = "s3://lakehouse/delta/"
     "--mergeKey"         = "order_id"
     "--job-language" = "python"
-
-    # 1) Tell Glue to wire in Delta Lake support
     "--datalake-formats" = "delta"
-
-    # 2) Pull in the matching Python wheel
     "--additional-python-modules" = "delta-spark==3.3.0"
-
-    # 3) Ensure your wheel’s JARs land on the classpath first
     "--user-jars-first" = "true"
 
-    # 4) Inject both static configs at job bootstrap
-    "--conf" = "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --conf spark.delta.logStore.class=org.apache.spark.sql.delta.storage.S3SingleDriverLogStore --conf spark.sql.shuffle.partitions=200 --conf spark.sql.adaptive.enabled=true --conf spark.sql.adaptive.coalescePartitions.enabled=true --conf spark.driver.maxResultSize=2g"
-
-    # ─── Force s3a to use the us-east-1 endpoint ───
-    # "--conf" = "fs.s3a.endpoint=s3.us-east-1.amazonaws.com"
+    # combined configs; tip: split with spaces
+    "--conf" = "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --conf spark.delta.logStore.class=org.apache.spark.sql.delta.storage.S3SingleDriverLogStore --conf spark.sql.shuffle.partitions=2000 --conf spark.sql.adaptive.enabled=true --conf spark.sql.adaptive.coalescePartitions.enabled=true --conf spark.driver.maxResultSize=4g"
   }
 
-  depends_on = [aws_s3_object.script]   # ensure the script is uploaded first
+  depends_on = [aws_s3_object.script]
 }
 
 #################
@@ -180,7 +167,7 @@ resource "aws_glue_job" "job" {
 # resource "aws_glue_trigger" "daily" {
 #   name     = "${var.job_name}-daily"
 #   type     = "SCHEDULED"
-#   schedule = "cron(0 2 * * ? *)"       # 02:00 UTC every day
+#   schedule = "cron(0 2 * * ? *)"
 #
 #   actions {
 #     job_name = aws_glue_job.job.name

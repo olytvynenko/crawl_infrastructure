@@ -99,7 +99,7 @@ resource "aws_iam_role_policy" "sfn_codebuild" {
 }
 
 ##############################################################################
-# 4. Step Functions state machine with conditional DeltaUpsert
+# 4. Step Functions state machine with unconditional destroy and conditional upsert
 ##############################################################################
 locals {
   retry_specific = {
@@ -117,7 +117,7 @@ locals {
   }
 
   state_machine_definition = jsonencode({
-    Comment = "Build ARM → cluster create → crawler → destroy → upsert delta",
+    Comment = "Build ARM → create cluster → run crawler → always destroy → only on success upsert delta",
     StartAt = "CrawlerArmBuild",
     States = {
       CrawlerArmBuild = {
@@ -125,49 +125,85 @@ locals {
         Resource = "arn:aws:states:::codebuild:startBuild.sync",
         Parameters = { ProjectName = var.crawler_arm_build_project },
         Retry = [local.retry_specific, local.retry_all],
-        Catch = [{ ErrorEquals = ["States.ALL"], Next = "ClusterDestroy", ResultPath = "$.error" }],
+        Catch = [{ ErrorEquals = ["States.ALL"], Next = "DestroyOnError" }],
         Next     = "ClusterCreate"
       },
+
       ClusterCreate = {
         Type     = "Task",
         Resource = "arn:aws:states:::codebuild:startBuild.sync",
         Parameters = {
           ProjectName = var.cluster_manager_project,
-          EnvironmentVariablesOverride = [{ Name = "ACTION", Type = "PLAINTEXT", Value = "create" }]
+          EnvironmentVariablesOverride = [
+            { Name = "ACTION", Type = "PLAINTEXT", Value = "create" }
+          ]
         },
         Retry = [local.retry_specific, local.retry_all],
-        Catch = [{ ErrorEquals = ["States.ALL"], Next = "ClusterDestroy", ResultPath = "$.error" }],
+        Catch = [{ ErrorEquals = ["States.ALL"], Next = "DestroyOnError" }],
         Next = "CrawlerRunner"
       },
+
       CrawlerRunner = {
         Type     = "Task",
         Resource = "arn:aws:states:::codebuild:startBuild.sync",
         Parameters = { ProjectName = var.crawler_runner_project },
         Retry = [local.retry_specific, local.retry_all],
-        Catch = [{ ErrorEquals = ["States.ALL"], Next = "ClusterDestroy", ResultPath = "$.error" }],
-        Next     = "ClusterDestroy"
+        Catch = [{ ErrorEquals = ["States.ALL"], Next = "DestroyOnError" }],
+        Next     = "DestroyAndUpsert"
       },
-      ClusterDestroy = {
+
+      DestroyOnError = {
         Type     = "Task",
         Resource = "arn:aws:states:::codebuild:startBuild.sync",
         Parameters = {
           ProjectName = var.cluster_manager_project,
-          EnvironmentVariablesOverride = [{ Name = "ACTION", Type = "PLAINTEXT", Value = "destroy" }]
+          EnvironmentVariablesOverride = [
+            { Name = "ACTION", Type = "PLAINTEXT", Value = "destroy" }
+          ]
         },
         Retry = [local.retry_specific, local.retry_all],
-        Next = "CheckError"
+        Next = "EndFailure"
       },
-      CheckError = {
-        Type    = "Choice",
-        Choices = [{ Variable = "$.error", IsPresent = true, Next = "EndFailure" }],
-        Default = "DeltaUpsert"
+
+      DestroyAndUpsert = {
+        Type = "Parallel",
+        Branches = [
+          {
+            StartAt = "ClusterDestroy",
+            States = {
+              ClusterDestroy = {
+                Type     = "Task",
+                Resource = "arn:aws:states:::codebuild:startBuild.sync",
+                Parameters = {
+                  ProjectName = var.cluster_manager_project,
+                  EnvironmentVariablesOverride = [
+                    { Name = "ACTION", Type = "PLAINTEXT", Value = "destroy" }
+                  ]
+                },
+                Retry = [local.retry_specific, local.retry_all],
+                End = true
+              }
+            }
+          },
+          {
+            StartAt = "DeltaUpsert",
+            States = {
+              DeltaUpsert = {
+                Type     = "Task",
+                Resource = "arn:aws:states:::glue:startJobRun.sync",
+                Parameters = { JobName = "delta-upsert" },
+                End      = true
+              }
+            }
+          }
+        ],
+        End = true
       },
-      EndFailure = { Type = "Fail", Error = "BuildFailed", Cause = "Upstream build error" },
-      DeltaUpsert = {
-        Type     = "Task",
-        Resource = "arn:aws:states:::glue:startJobRun.sync",
-        Parameters = { JobName = "delta-upsert" },
-        End      = true
+
+      EndFailure = {
+        Type  = "Fail",
+        Error = "BuildFailed",
+        Cause = "One of the build steps failed"
       }
     }
   })

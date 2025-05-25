@@ -33,6 +33,9 @@ spark.conf.set(
     "spark.delta.logStore.class",
     "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"
 )
+# 1) target ≈128 MB files
+TARGET_BYTES = 128 * 1024 * 1024
+spark.conf.set("spark.sql.files.maxPartitionBytes", TARGET_BYTES)
 
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
@@ -106,6 +109,7 @@ df = (
     .withColumn("Server", F.col("Meta.Server"))
     .withColumn("Wordcount", F.col("Meta.Wordcount"))
     .withColumn("link", F.explode("ExternalLinks"))
+    .filter("link.Protocol IN ('http','https')")
     .drop("ExternalLinks")
     .withColumnRenamed('Title', 'MetaTitle')
     .withColumn("LinkDomain", F.col("link.Domain"))
@@ -123,6 +127,8 @@ df = (
     .filter("part <> ''")
 )
 
+df = df.persist()
+
 # Cloudflare metrics -> DynamoDB
 sorry_cnt = df.where("CloudflareBlock = true").select("RootDomain").agg(F.approx_count_distinct("RootDomain")).first()[
     0]
@@ -136,10 +142,11 @@ factor = max(math.ceil(data_mb / TARGET_MB), COALESCE_MIN)
 
 links = (
     df.dropDuplicates(["LinkRootDomain", "LinkPath", "LinkQuery"])  # ensure unique keys
-    .where("LinkProtocol IN ('http','https')")
     .sortWithinPartitions("LinkRootDomain")
     .coalesce(factor)
 )
+
+df.unpersist()
 
 # ─────────────────────────── prepare update DataFrame
 updates = links.select(
@@ -168,15 +175,27 @@ updates = links.select(
     F.col("InternalLinkCount").alias("internal_link_count"),
     F.col("ExternalDomainCount").alias("domain_count"),
     F.col("ExternalRootDomainCount").alias("root_domain_count"),
-    F.col("DateGmt").alias("date_gmt"),
-    F.col("ModifiedGmt").alias("modified_gmt"),
-    F.col("PostWordcount").alias("post_wordcount"),
+    F.col("WpMeta.DateGmt").alias("date_gmt"),
+    F.col("WpMeta.ModifiedGmt").alias("modified_gmt"),
+    F.col("WpMeta.PostWordcount").alias("post_wordcount"),
     F.col("CloudflareChallenge").alias("cf_challenge"),
     F.col("CloudflareBlock").alias("cf_sorry_block"),
     F.col("IpBlock").alias("aws_block_ip"),
     F.col("TimeStamp").alias("timestamp"),
     "part", "stage"
 )
+
+merge_keys = [
+    "link_root_domain",
+    "link_path",
+    "link_query",
+    "root_domain",
+    "path",
+    "query"
+]
+
+# drop any duplicate rows in this batch on all six keys
+updates = updates.dropDuplicates(merge_keys)
 
 # ─────────────────────────── upsert to Delta
 if not DeltaTable.isDeltaTable(spark, DELTA_PATH):
@@ -186,7 +205,7 @@ if not DeltaTable.isDeltaTable(spark, DELTA_PATH):
      .save(DELTA_PATH))
 else:
     delta_tbl = DeltaTable.forPath(spark, DELTA_PATH)
-    cond = " AND ".join([f"t.{k}=s.{k}" for k in ["link_root_domain", "link_path", "link_query"]])
+    cond = " AND ".join([f"t.{k}=s.{k}" for k in merge_keys])
     (delta_tbl.alias("t")
      .merge(updates.alias("s"), cond)
      .whenMatchedUpdateAll()
@@ -195,11 +214,42 @@ else:
 
 # maintenance (optimize + vacuum)
 # spark.sql(f"OPTIMIZE delta.`{DELTA_PATH}` ZORDER BY (link_root_domain)")
-# spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", "false")
-# spark.sql(f"VACUUM delta.`{DELTA_PATH}` RETAIN 0 HOURS")
+spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", "false")
+spark.sql(f"VACUUM delta.`{DELTA_PATH}` RETAIN 0 HOURS")
 
 # ─────────────────────────── export Parquet snapshot
 df_snapshot = spark.read.format("delta").load(DELTA_PATH)
-df_snapshot.write.mode("overwrite").parquet(SNAPSHOT_PATH)
+(df_snapshot
+ .write
+ .partitionBy("part", "stage")
+ .mode("overwrite")
+ .parquet(SNAPSHOT_PATH))
+
+# 1) Read the entire table into a DataFrame
+# df = spark.read.format("delta").load(DELTA_PATH)
+#
+# from pyspark.sql import Window
+#
+# # 2) Assign a row‐number per group of your six keys, keeping the “latest” row
+# window = Window.partitionBy(
+#     "link_root_domain","link_path","link_query",
+#     "root_domain","path","query"
+# ).orderBy(F.desc("timestamp"))
+#
+# deduped = (
+#     df.withColumn("rn", F.row_number().over(window))
+#       .filter("rn = 1")
+#       .drop("rn")
+# )
+#
+# # 3) Overwrite the Delta table with the deduped DataFrame
+# deduped.write \
+#     .format("delta") \
+#     .mode("overwrite") \
+#     .option("overwriteSchema", "true") \
+#     .partitionBy("part","stage") \
+#     .save(DELTA_PATH)
+
+# spark.sql(f"OPTIMIZE delta.`{DELTA_PATH}` ZORDER BY (link_root_domain)")
 
 job.commit()
