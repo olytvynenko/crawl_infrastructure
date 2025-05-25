@@ -23,6 +23,51 @@ module "vpc" {
 
 }
 
+# Clean up resources before destroying VPC to avoid DependencyViolation errors
+resource "null_resource" "release_eips" {
+  # Always run on destroy
+  triggers = { always = timestamp() }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+for alloc in $(aws ec2 describe-addresses \
+    --filters "Name=domain,Values=vpc" "Name=vpc-id,Values=${module.vpc.vpc_id}" \
+    --query 'Addresses[*].AllocationId' --output text); do
+  aws ec2 release-address --allocation-id $alloc
+done
+EOT
+  }
+}
+
+resource "null_resource" "detach_igw" {
+  depends_on = [null_resource.release_eips]
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+aws ec2 detach-internet-gateway \
+    --internet-gateway-id ${module.vpc.igw_id} \
+    --vpc-id ${module.vpc.vpc_id}
+EOT
+  }
+}
+
+resource "null_resource" "delete_enis" {
+  depends_on = [null_resource.detach_igw]
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+for eni in $(aws ec2 describe-network-interfaces \
+    --filters "Name=vpc-id,Values=${module.vpc.vpc_id}" \
+    --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text); do
+  aws ec2 delete-network-interface --network-interface-id $eni
+done
+EOT
+  }
+}
+
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = module.vpc.vpc_id
   service_name      = "com.amazonaws.${var.region}.s3"
