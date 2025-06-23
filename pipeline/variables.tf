@@ -30,7 +30,7 @@ variable "s3_prefix" { default = "glue-scripts" }
 ########################################################
 # Delta Upsert Job Configuration
 ########################################################
-variable "delta_upsert" {
+variable "wpapi_delta_upsert" {
   type = object({
     job_name          = string
     script_path       = string
@@ -54,7 +54,6 @@ variable "delta_upsert" {
   }
 }
 
-
 ########################################################
 # Sitemap Seed Generator Job Configuration
 ########################################################
@@ -62,6 +61,7 @@ variable "sitemap_generator" {
   type = object({
     job_name          = string
     script_path       = string
+    stage = string
     glue_version      = string
     worker_type       = string
     number_of_workers = number
@@ -70,6 +70,7 @@ variable "sitemap_generator" {
   default = {
     job_name          = "sitemap-seed-generator"
     script_path       = "scripts/sitemap_seed_generator.py"
+    stage = "sm"
     glue_version      = "5.0"
     worker_type       = "G.1X"
     number_of_workers = 5

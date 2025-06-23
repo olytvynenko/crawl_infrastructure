@@ -11,7 +11,7 @@ data "aws_caller_identity" "current" {}
 ########################################################
 locals {
   account_id         = data.aws_caller_identity.current.account_id
-  delta_script_key   = "${var.s3_prefix}/${var.delta_upsert.job_name}/${filesha1(var.delta_upsert.script_path)}.py"
+  delta_script_key = "${var.s3_prefix}/${var.wpapi_delta_upsert.job_name}/${filesha1(var.wpapi_delta_upsert.script_path)}.py"
   sitemap_script_key = "${var.s3_prefix}/${var.sitemap_generator.job_name}/${filesha1("${path.module}/${var.sitemap_generator.script_path}")}.py"
 }
 
@@ -21,8 +21,8 @@ locals {
 resource "aws_s3_object" "delta_script" {
   bucket = var.s3_bucket
   key    = local.delta_script_key
-  source = var.delta_upsert.script_path
-  etag = filemd5(var.delta_upsert.script_path)
+  source = var.wpapi_delta_upsert.script_path
+  etag = filemd5(var.wpapi_delta_upsert.script_path)
 }
 
 resource "aws_s3_object" "sitemap_script" {
@@ -89,7 +89,7 @@ resource "aws_iam_policy" "glue_ssm_read" {
       {
         Effect   = "Allow"
         Action = ["ssm:GetParameter", "ssm:GetParameters"]
-        Resource = "arn:aws:ssm:*:${local.account_id}:parameter/crawl/*"
+        Resource = "arn:aws:ssm:*:${local.account_id}:parameter/*"
       }
     ]
   })
@@ -114,7 +114,7 @@ resource "aws_iam_policy" "dynamodb_import_write" {
 # Delta Upsert Job (Glue 5.0)
 ########################################################
 resource "aws_iam_role" "delta_glue_job" {
-  name               = "${var.delta_upsert.job_name}-role"
+  name = "${var.wpapi_delta_upsert.job_name}-role"
   assume_role_policy = data.aws_iam_policy_document.assume_glue.json
 }
 
@@ -139,7 +139,7 @@ resource "aws_iam_role_policy_attachment" "delta_dynamodb_write" {
 }
 
 resource "aws_glue_job" "delta_upsert" {
-  name     = var.delta_upsert.job_name
+  name = var.wpapi_delta_upsert.job_name
   role_arn = aws_iam_role.delta_glue_job.arn
 
   command {
@@ -147,16 +147,16 @@ resource "aws_glue_job" "delta_upsert" {
     python_version  = "3"
   }
 
-  glue_version      = var.delta_upsert.glue_version
-  worker_type       = var.delta_upsert.worker_type
-  number_of_workers = var.delta_upsert.number_of_workers
+  glue_version      = var.wpapi_delta_upsert.glue_version
+  worker_type       = var.wpapi_delta_upsert.worker_type
+  number_of_workers = var.wpapi_delta_upsert.number_of_workers
 
   default_arguments = {
     "--s3bucket"                         = var.s3_bucket
-    "--coalesce"                         = var.delta_upsert.coalesce
-    "--stage"                            = var.delta_upsert.stage
-    "--target_file_size"                 = var.delta_upsert.target_file_size
-    "--TempDir"                          = "s3a://${var.s3_bucket}/temp/"
+    "--coalesce"         = var.wpapi_delta_upsert.coalesce
+    "--stage"            = var.wpapi_delta_upsert.stage
+    "--target_file_size" = var.wpapi_delta_upsert.target_file_size
+    "--TempDir"          = "s3://${var.s3_bucket}/temp/"
     "--job-language"                     = "python"
     "--datalake-formats"                 = "delta"
     "--additional-python-modules"        = "delta-spark==3.3.0"
@@ -208,8 +208,7 @@ resource "aws_glue_job" "sitemap_seed_generator" {
   number_of_workers = var.sitemap_generator.number_of_workers
 
   default_arguments = {
-    "--s3bucket"                         = var.s3_bucket
-    "--TempDir"                          = "s3a://${var.s3_bucket}/temp/"
+    "--TempDir" = "s3://${var.s3_bucket}/temp/"
     "--job-language"                     = "python"
     "--enable-metrics"                   = "true"
     "--enable-spark-ui"                  = "true"

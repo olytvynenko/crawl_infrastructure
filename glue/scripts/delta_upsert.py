@@ -65,21 +65,16 @@ def with_type(prefix: str, ds_type: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # S3 URI builder
 # ─────────────────────────────────────────────────────────────────────────────
-def build_uris(args: dict, params: dict) -> dict[str, str]:
-    bucket = args["s3bucket"]
-    ds_type = params["type"]  # "h" or "nh"
-
-    # Append dataset-type folder to every dataset-specific path
-    raw_path = with_type(params["raw"], ds_type)
-    delta_path = with_type(params["delta"], ds_type)
-    snapshot_path = with_type(params["snapshot"], ds_type)
+def build_uris(stage: str, links_type: str, params: dict) -> dict[str, str]:
+    bucket = params["bucket"]
+    dataset = params["dataset"]
 
     return {
-        "raw_path": f"s3://{bucket}/{raw_path}",
-        "delta_path": f"s3://{bucket}/{delta_path}",
-        "snapshot_path": f"s3://{bucket}/{snapshot_path}",
-        "ip_path": f"s3://{bucket}/{params['ip']}",  # unchanged
-        "raw_prefix": raw_path,  # for coalesce()
+        "raw_path": f"s3://{bucket}/{dataset}/update/results/{stage}/{links_type}/",
+        "delta_path": f"s3://{bucket}/links/delta/{dataset}/{stage}/{links_type}/",
+        "snapshot_path": f"s3://{bucket}/links/snapshots/{dataset}/{stage}/{links_type}/",
+        "ip_path": f"s3://{bucket}/{params['ip']}",
+        "raw_prefix": f"{dataset}/update/results/{stage}/{links_type}/"
     }
 
 
@@ -249,69 +244,67 @@ def write_snapshot(spark, delta_path, snapshot_path):
 # Main entry-point
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
-    # 1 · parse job args and init Glue
+    # parse job args and init Glue
     raw_args = getResolvedOptions(
-        sys.argv, ["JOB_NAME", "s3bucket", "stage", "coalesce", "target_file_size"]
+        sys.argv, ["JOB_NAME", "stage", "coalesce", "target_file_size"]
     )
     sc, glue_ctx, spark = create_spark_session()
     job = Job(glue_ctx)
     job.init(raw_args["JOB_NAME"], raw_args)
 
-    # 2 · SSM parameters (+ new dataset/type)
+    # SSM parameters (+ new dataset/type)
     ssm_keys = {
-        "raw": "/crawl/path/results",
-        "delta": "/crawl/path/dataset/delta",
-        "snapshot": "/crawl/path/dataset/snapshot",
+        "bucket": "/s3/bucket",
         "ip": "/crawl/path/ip_addresses",
         "dataset": "/crawl/dataset/current",
         "type": "/crawl/dataset/type",  # NEW
     }
     p = read_ssm_params(ssm_keys)
-
-    # 3 · Build S3 URIs (add dataset-type sub-folder)
-    uris = build_uris(raw_args, p)
-
+    stage = raw_args["stage"]
     import_id = f"{p['dataset']}-{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
+    for links_type in ["h", "nh"]:
+        # Build S3 URIs (add dataset-type sub-folder)
+        uris = build_uris(stage=stage, links_type=links_type, params=p)
 
-    # 4 · Read reference + raw, transform
-    ip_df = load_reference_data(spark, uris["ip_path"])
-    raw_df = spark.read.parquet(uris["raw_path"])
-    df = transform_raw(raw_df, ip_df, raw_args["stage"])
+        # Read reference + raw, transform
+        ip_df = load_reference_data(spark, uris["ip_path"])
+        raw_df = spark.read.parquet(uris["raw_path"])
+        df = transform_raw(raw_df, ip_df, stage)
 
-    # 5 · OPTIONAL checkpoint to cut lineage depth
-    ckpt_path = f"s3://{raw_args['s3bucket']}/tmp/checkpoint-{import_id}"
-    df.write.mode("overwrite").parquet(ckpt_path)
-    df = spark.read.parquet(ckpt_path)
+        # OPTIONAL checkpoint to cut lineage depth
+        ckpt_path = f"s3://{raw_args['s3bucket']}/tmp/checkpoint-{import_id}"
+        df.write.mode("overwrite").parquet(ckpt_path)
+        df = spark.read.parquet(ckpt_path)
 
-    # 6 · Metrics → DynamoDB
-    sorry, challenge = compute_cloudflare_metrics(df)
-    update_dynamodb(import_id, p["dataset"], sorry, challenge)
+        # Metrics → DynamoDB
+        sorry, challenge = compute_cloudflare_metrics(df)
+        update_dynamodb(import_id, p["dataset"], sorry, challenge)
 
-    # 7 · Coalesce adaptively (prefix includes dataset-type now)
-    links = adaptive_coalesce(
-        df,
-        raw_args["s3bucket"],
-        uris["raw_prefix"],  # << includes h/ or nh/
-        int(raw_args["target_file_size"]),
-        int(raw_args["coalesce"]),
-    )
+        # Coalesce adaptively (prefix includes dataset-type now)
+        links = adaptive_coalesce(
+            df,
+            p["bucket"],
+            uris["raw_prefix"],  # << includes h/ or nh/
+            int(raw_args["target_file_size"]),
+            int(raw_args["coalesce"]),
+        )
 
-    sample_count = links.sample(0.01).count() * 100
-    print(f"Links count: {sample_count}")
+        sample_count = links.sample(0.01).count() * 100
+        print(f"Links count: {sample_count}")
 
-    updates = prepare_updates(links)
+        updates = prepare_updates(links)
 
-    # 8 · Upsert into Delta + snapshot
-    merge_keys = [
-        "link_root_domain",
-        "link_path",
-        "link_query",
-        "root_domain",
-        "path",
-        "query",
-    ]
-    upsert_delta(spark, updates, uris["delta_path"], merge_keys)
-    write_snapshot(spark, uris["delta_path"], uris["snapshot_path"])
+        # 8 · Upsert into Delta + snapshot
+        merge_keys = [
+            "link_root_domain",
+            "link_path",
+            "link_query",
+            "root_domain",
+            "path",
+            "query",
+        ]
+        upsert_delta(spark, updates, uris["delta_path"], merge_keys)
+        write_snapshot(spark, uris["delta_path"], uris["snapshot_path"])
 
     job.commit()
 

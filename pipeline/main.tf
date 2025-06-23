@@ -290,7 +290,9 @@ locals {
           ProjectName = var.crawler_runner_project,
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "h" },
-            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "wordpress" }
+            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "wordpress" },
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/${var.wpapi_delta_upsert.stage}/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/${var.wpapi_delta_upsert.stage}/" }
           ]
         },
         ResultPath = null,
@@ -330,7 +332,9 @@ locals {
           ProjectName = var.crawler_runner_project,
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "nh" },
-            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "wordpress" }
+            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "wordpress" },
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/${var.wpapi_delta_upsert.stage}/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/${var.wpapi_delta_upsert.stage}/" }
           ]
         },
         ResultPath = null,
@@ -370,7 +374,9 @@ locals {
           ProjectName = var.crawler_runner_project,
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "h" },
-            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "sitemaps" }
+            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "sitemaps" },
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sitemaps/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sitemaps/" }
           ]
         },
         ResultPath = null,
@@ -410,7 +416,9 @@ locals {
           ProjectName = var.crawler_runner_project,
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "nh" },
-            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "sitemaps" }
+            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "sitemaps" },
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sitemaps/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sitemaps/" }
           ]
         },
         ResultPath = null,
@@ -437,7 +445,7 @@ locals {
           {
             Variable      = "$.stages.delta_upsert",
             BooleanEquals = false,
-            Next          = "CheckClusterDestroy"
+            Next = "CheckGenerateSitemapSeeds"
           }
         ],
         Default = "DeltaUpsert"
@@ -447,12 +455,11 @@ locals {
         Type     = "Task",
         Resource = "arn:aws:states:::glue:startJobRun.sync",
         Parameters = {
-          JobName = var.delta_upsert.job_name,
+          JobName = var.wpapi_delta_upsert.job_name,
           Arguments = {
-            "--s3bucket" = var.s3_bucket,
-            "--stage"    = var.delta_upsert.stage,
-            "--coalesce" = tostring(var.delta_upsert.coalesce),
-            "--target_file_size" = tostring(var.delta_upsert.target_file_size)
+            "--stage" = var.wpapi_delta_upsert.stage,
+            "--coalesce" = tostring(var.wpapi_delta_upsert.coalesce),
+            "--target_file_size" = tostring(var.wpapi_delta_upsert.target_file_size)
           }
         },
         ResultPath = null,
@@ -470,8 +477,132 @@ locals {
             Next = "CheckClusterDestroy"
           }
         ],
-        Next = "CheckClusterDestroy"
+        Next = "CheckGenerateSitemapSeeds"
       },
+
+      CheckGenerateSitemapSeeds = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.stages.generate_sitemap_seeds",
+            BooleanEquals = false,
+            Next          = "CheckCrawlUrlsHidden"
+          }
+        ],
+        Default = "GenerateSitemapSeeds"
+      },
+
+      GenerateSitemapSeeds = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::glue:startJobRun.sync",
+        Parameters = {
+          JobName = var.sitemap_generator.job_name,
+          Arguments = {
+            "--in_path"  = "update/results/sitemaps/",
+            "--out_path" = "update/seed/${var.sitemap_generator.stage}/"
+          }
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 30,
+            MaxAttempts     = 3,
+            BackoffRate     = 2.0
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            Next = "CheckClusterDestroy"
+          }
+        ],
+        Next = "CheckCrawlUrlsHidden"  # or whatever the next stage should be
+      }
+
+      CheckCrawlUrlsHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.stages.crawl_urls_hidden",
+            BooleanEquals = false,
+            Next          = "CheckCrawlUrlsNonHidden"
+          }
+        ],
+        Default = "CrawlUrlsHidden"
+      }
+
+      CrawlUrlsHidden = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::codebuild:startBuild.sync",
+        Parameters = {
+          ProjectName = var.crawler_runner_project,
+          EnvironmentVariablesOverride = [
+            { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "h" },
+            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "links" },
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sm/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sm/" }
+          ]
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 30,
+            MaxAttempts     = 2,
+            BackoffRate     = 2.0
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            Next = "CheckCrawlUrlsNonHidden"
+          }
+        ],
+        Next = "CheckCrawlUrlsNonHidden"
+      }
+
+      CheckCrawlUrlsNonHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.stages.crawl_urls_non_hidden",
+            BooleanEquals = false,
+            Next          = "CheckClusterDestroy"
+          }
+        ],
+        Default = "CrawlUrlsNonHidden"
+      }
+
+      CrawlUrlsNonHidden = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::codebuild:startBuild.sync",
+        Parameters = {
+          ProjectName = var.crawler_runner_project,
+          EnvironmentVariablesOverride = [
+            { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "nh" },
+            { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "links" },
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sm/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sm/" }
+          ]
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 30,
+            MaxAttempts     = 2,
+            BackoffRate     = 2.0
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            Next = "CheckClusterDestroy"
+          }
+        ],
+        Next = "CheckClusterDestroy"
+      }
 
       CheckClusterDestroy = {
         Type = "Choice",

@@ -4,10 +4,9 @@
 #  and create seed CSV files with ~5000 URLs per file
 # ─────────────────────────────────────────────────────────────────────────────
 
+import boto3
 import sys
 import math
-from datetime import datetime, timezone
-
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
@@ -23,6 +22,12 @@ def create_spark_session():
     glue_ctx = GlueContext(sc)
     spark = glue_ctx.spark_session
     return sc, glue_ctx, spark
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parameter Store helpers
+# ─────────────────────────────────────────────────────────────────────────────
+_ssm = boto3.client("ssm")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,28 +85,32 @@ def process_sitemap_files(spark, sitemap_path, output_path):
 def main():
     # Parse job arguments
     raw_args = getResolvedOptions(
-        sys.argv, ["JOB_NAME", "IN_PATH", "OUT_PATH"]
+        sys.argv, ["JOB_NAME", "in_path", "out_path"]
     )
 
     sc, glue_ctx, spark = create_spark_session()
     job = Job(glue_ctx)
     job.init(raw_args["JOB_NAME"], raw_args)
 
-    # Get paths from job parameters
-    sitemap_path = raw_args["IN_PATH"]
-    output_path = raw_args["OUT_PATH"]
+    bucket = _ssm.get_parameter(Name="/s3/bucket", WithDecryption=True)["Parameter"]["Value"]
+    dataset = _ssm.get_parameter(Name="/crawl/dataset/current", WithDecryption=True)["Parameter"]["Value"]
 
-    print(f"Input path: {sitemap_path}")
-    print(f"Output path: {output_path}")
+    for links_type in ["h", "nh"]:
+        # Get paths from job parameters
+        sitemap_path = f"s3://{bucket}/{dataset}/{raw_args['in_path']}{links_type}"
+        output_path = f"s3://{bucket}/{dataset}/{raw_args['out_path']}{links_type}"
 
-    # Process the files
-    try:
-        num_partitions, total_urls = process_sitemap_files(spark, sitemap_path, output_path)
-        print(f"Successfully processed {total_urls} URLs into {num_partitions} CSV files")
+        print(f"Input path: {sitemap_path}")
+        print(f"Output path: {output_path}")
 
-    except Exception as e:
-        print(f"Error processing sitemap files: {str(e)}")
-        raise e
+        # Process the files
+        try:
+            num_partitions, total_urls = process_sitemap_files(spark, sitemap_path, output_path)
+            print(f"Successfully processed {total_urls} URLs into {num_partitions} CSV files")
+
+        except Exception as e:
+            print(f"Error processing sitemap files: {str(e)}")
+            raise e
 
     job.commit()
     print("Job completed successfully")
