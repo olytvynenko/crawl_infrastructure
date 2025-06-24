@@ -30,6 +30,7 @@ resource "null_resource" "cleanup_vpc_dependencies" {
     vpc_id = module.vpc.vpc_id
     igw_id = module.vpc.igw_id
     region = var.region
+    cluster_name = local.cluster_name
   }
 
   provisioner "local-exec" {
@@ -37,94 +38,104 @@ resource "null_resource" "cleanup_vpc_dependencies" {
     command    = <<-EOT
       set -e
 
-      # Clean up Load Balancers first
-      echo "Cleaning up Load Balancers..."
+      echo "Starting comprehensive VPC cleanup for ${self.triggers.vpc_id}"
 
-      # Delete ALBs
-      for arn in $(aws elbv2 describe-load-balancers --region ${self.triggers.region} --query "LoadBalancers[?VpcId=='${self.triggers.vpc_id}'].LoadBalancerArn" --output text); do
-        echo "Deleting ALB: $arn"
-        aws elbv2 delete-load-balancer --region ${self.triggers.region} --load-balancer-arn $arn || true
+      # 1. Clean up Kubernetes-managed Load Balancers first
+      echo "=== Cleaning up Kubernetes Load Balancers ==="
+
+      # Delete ALBs tagged with the cluster
+      for arn in $(aws elbv2 describe-load-balancers --region ${self.triggers.region} --query "LoadBalancers[?VpcId=='${self.triggers.vpc_id}'].LoadBalancerArn" --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$arn" ]; then
+          echo "Deleting ALB: $arn"
+          aws elbv2 delete-load-balancer --region ${self.triggers.region} --load-balancer-arn $arn || true
+        fi
       done
 
       # Delete Classic ELBs
-      for name in $(aws elb describe-load-balancers --region ${self.triggers.region} --query "LoadBalancerDescriptions[?VpcId=='${self.triggers.vpc_id}'].LoadBalancerName" --output text); do
-        echo "Deleting ELB: $name"
-        aws elb delete-load-balancer --region ${self.triggers.region} --load-balancer-name $name || true
+      for name in $(aws elb describe-load-balancers --region ${self.triggers.region} --query "LoadBalancerDescriptions[?VpcId=='${self.triggers.vpc_id}'].LoadBalancerName" --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$name" ]; then
+          echo "Deleting ELB: $name"
+          aws elb delete-load-balancer --region ${self.triggers.region} --load-balancer-name $name || true
+        fi
       done
 
-      # Wait for LBs to be deleted
-      sleep 30
+      # Wait for Load Balancers to be deleted
+      echo "Waiting 45 seconds for Load Balancers to be deleted..."
+      sleep 45
 
-      # Release Elastic IPs
-      echo "Releasing Elastic IPs..."
-      for allocation_id in $(aws ec2 describe-addresses --region ${self.triggers.region} --filters "Name=domain,Values=vpc" --query "Addresses[?AssociationId!=null].AllocationId" --output text); do
-        echo "Disassociating and releasing EIP: $allocation_id"
-        aws ec2 disassociate-address --region ${self.triggers.region} --allocation-id $allocation_id || true
-        aws ec2 release-address --region ${self.triggers.region} --allocation-id $allocation_id || true
+      # 2. Release ALL Elastic IPs in the VPC
+      echo "=== Releasing Elastic IPs ==="
+      for allocation_id in $(aws ec2 describe-addresses --region ${self.triggers.region} --filters "Name=domain,Values=vpc" --query "Addresses[].AllocationId" --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$allocation_id" ] && [ "$allocation_id" != "None" ]; then
+          echo "Disassociating EIP: $allocation_id"
+          aws ec2 disassociate-address --region ${self.triggers.region} --allocation-id $allocation_id 2>/dev/null || true
+          echo "Releasing EIP: $allocation_id"
+          aws ec2 release-address --region ${self.triggers.region} --allocation-id $allocation_id 2>/dev/null || true
+        fi
       done
 
-      # Delete NAT Gateways
-      echo "Deleting NAT Gateways..."
-      for nat_id in $(aws ec2 describe-nat-gateways --region ${self.triggers.region} --filter "Name=vpc-id,Values=${self.triggers.vpc_id}" --filter "Name=state,Values=available" --query 'NatGateways[].NatGatewayId' --output text); do
-        echo "Deleting NAT Gateway: $nat_id"
-        aws ec2 delete-nat-gateway --region ${self.triggers.region} --nat-gateway-id $nat_id || true
+      # 3. Delete NAT Gateways
+      echo "=== Deleting NAT Gateways ==="
+      for nat_id in $(aws ec2 describe-nat-gateways --region ${self.triggers.region} --filter "Name=vpc-id,Values=${self.triggers.vpc_id}" --filter "Name=state,Values=available" --query 'NatGateways[].NatGatewayId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$nat_id" ] && [ "$nat_id" != "None" ]; then
+          echo "Deleting NAT Gateway: $nat_id"
+          aws ec2 delete-nat-gateway --region ${self.triggers.region} --nat-gateway-id $nat_id || true
+        fi
       done
 
-      # Delete Network Interfaces (ENIs)
-      echo "Deleting Network Interfaces..."
-      for eni_id in $(aws ec2 describe-network-interfaces --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --filters "Name=status,Values=available" --query 'NetworkInterfaces[].NetworkInterfaceId' --output text); do
-        echo "Deleting ENI: $eni_id"
-        aws ec2 delete-network-interface --region ${self.triggers.region} --network-interface-id $eni_id || true
+      # 4. Force delete ALL Network Interfaces in the VPC
+      echo "=== Deleting Network Interfaces ==="
+      for eni_id in $(aws ec2 describe-network-interfaces --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --query 'NetworkInterfaces[?Status==`available`].NetworkInterfaceId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$eni_id" ] && [ "$eni_id" != "None" ]; then
+          echo "Deleting ENI: $eni_id"
+          aws ec2 delete-network-interface --region ${self.triggers.region} --network-interface-id $eni_id 2>/dev/null || true
+        fi
+      done
+
+      # 5. Delete VPC Endpoints that might be blocking
+      echo "=== Deleting VPC Endpoints ==="
+      for endpoint_id in $(aws ec2 describe-vpc-endpoints --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --query 'VpcEndpoints[].VpcEndpointId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$endpoint_id" ] && [ "$endpoint_id" != "None" ]; then
+          echo "Deleting VPC Endpoint: $endpoint_id"
+          aws ec2 delete-vpc-endpoint --region ${self.triggers.region} --vpc-endpoint-id $endpoint_id 2>/dev/null || true
+        fi
+      done
+
+      # 6. Delete Security Group Rules that might cause dependencies
+      echo "=== Cleaning Security Group Rules ==="
+      for sg_id in $(aws ec2 describe-security-groups --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$sg_id" ] && [ "$sg_id" != "None" ]; then
+          echo "Removing rules from Security Group: $sg_id"
+          # Remove all ingress rules
+          aws ec2 describe-security-groups --region ${self.triggers.region} --group-ids $sg_id --query 'SecurityGroups[0].IpPermissions' --output json | jq -r '.[] | @base64' | while read rule; do
+            echo $rule | base64 -d | jq -c . | while read decoded_rule; do
+              aws ec2 revoke-security-group-ingress --region ${self.triggers.region} --group-id $sg_id --ip-permissions "$decoded_rule" 2>/dev/null || true
+            done
+          done
+          # Remove all egress rules
+          aws ec2 describe-security-groups --region ${self.triggers.region} --group-ids $sg_id --query 'SecurityGroups[0].IpPermissionsEgress' --output json | jq -r '.[] | @base64' | while read rule; do
+            echo $rule | base64 -d | jq -c . | while read decoded_rule; do
+              aws ec2 revoke-security-group-egress --region ${self.triggers.region} --group-id $sg_id --ip-permissions "$decoded_rule" 2>/dev/null || true
+            done
+          done
+        fi
       done
 
       # Wait for everything to be cleaned up
-      echo "Waiting for resources to be fully deleted..."
+      echo "=== Final wait for resource cleanup ==="
       sleep 60
 
-      # Finally detach and delete IGW
-      echo "Detaching Internet Gateway..."
-      aws ec2 detach-internet-gateway --region ${self.triggers.region} --internet-gateway-id ${self.triggers.igw_id} --vpc-id ${self.triggers.vpc_id} || true
+      # 7. Force detach Internet Gateway
+      echo "=== Detaching Internet Gateway ==="
+      aws ec2 detach-internet-gateway --region ${self.triggers.region} --internet-gateway-id ${self.triggers.igw_id} --vpc-id ${self.triggers.vpc_id} 2>/dev/null || true
 
-      echo "VPC cleanup completed"
+      echo "=== VPC cleanup completed successfully ==="
     EOT
     on_failure = continue
   }
-
 }
 
-
-# Clean up resources before destroying VPC to avoid DependencyViolation errors
-# resource "null_resource" "detach_igw" {
-#
-#   triggers = {
-#     always = timestamp()
-#     vpc_id = module.vpc.vpc_id
-#     igw_id = module.vpc.igw_id
-#   }
-#
-#   provisioner "local-exec" {
-#     when        = destroy
-#     command     = "aws ec2 detach-internet-gateway --internet-gateway-id ${self.triggers.igw_id} --vpc-id ${self.triggers.vpc_id}"
-#     on_failure  = continue
-#   }
-# }
-
-
-# resource "null_resource" "delete_enis" {
-#   triggers = {
-#     always = timestamp()
-#     vpc_id = module.vpc.vpc_id
-#     igw_id = module.vpc.igw_id
-#   }
-#
-#   provisioner "local-exec" {
-#     when    = destroy
-#     command = "for eip in $(aws ec2 describe-addresses --filters Name=domain,Values=vpc --query 'Addresses[].AllocationId' --output text); do aws ec2 disassociate-address --allocation-id $eip 2>/dev/null; aws ec2 release-address --allocation-id $eip 2>/dev/null; done; aws ec2 detach-internet-gateway --internet-gateway-id ${self.triggers.igw_id} --vpc-id ${self.triggers.vpc_id}"
-#     on_failure = continue
-#   }
-# }
-
-
+# Make sure VPC endpoints depend on the cleanup resource
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = module.vpc.vpc_id
   service_name      = "com.amazonaws.${var.region}.s3"
@@ -143,10 +154,14 @@ resource "aws_vpc_endpoint" "s3" {
   ]
 }
 POLICY
+
+  depends_on = [null_resource.cleanup_vpc_dependencies]
 }
 
 resource "aws_vpc_endpoint" "ecr" {
   vpc_id            = module.vpc.vpc_id
   service_name      = "com.amazonaws.${var.region}.ecr.dkr"
   vpc_endpoint_type = "Interface"
+
+  depends_on = [null_resource.cleanup_vpc_dependencies]
 }
