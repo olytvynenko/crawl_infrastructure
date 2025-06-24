@@ -252,6 +252,10 @@ locals {
         Resource = "arn:aws:states:::codebuild:startBuild.sync",
         Parameters = {
           ProjectName = var.cluster_manager_project,
+          EnvironmentVariablesOverride = [
+            { Name = "ACTION", Type = "PLAINTEXT", Value = "create" },
+            { Name = "CLUSTERS", Type = "PLAINTEXT", Value = "nv" }
+          ]
         },
         ResultPath = null,
         Retry = [
