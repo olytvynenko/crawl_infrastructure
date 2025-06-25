@@ -1,7 +1,7 @@
 module "karpenter" {
 
   source       = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "~> 20.24"
+  version = "~> 20.37"
   cluster_name = var.cluster_name
 
   create_access_entry = false

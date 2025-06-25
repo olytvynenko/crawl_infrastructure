@@ -1,9 +1,9 @@
 module "eks" {
 
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.24"
+  version         = "~> 20.37"
   cluster_name    = local.cluster_name
-  cluster_version = "1.31"
+  cluster_version = "1.33"
 
   authentication_mode = "API"
 

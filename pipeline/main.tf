@@ -407,7 +407,7 @@ locals {
           {
             Variable      = "$.stages.crawl_sitemap_non_hidden",
             BooleanEquals = false,
-            Next          = "CheckDeltaUpsert"
+            Next = "CheckWpapiDeltaUpsert"
           }
         ],
         Default = "CrawlSitemapNonHidden"
@@ -440,10 +440,10 @@ locals {
             Next = "CheckClusterDestroy"
           }
         ],
-        Next = "CheckDeltaUpsert"
+        Next = "CheckWpapiDeltaUpsert"
       },
 
-      CheckDeltaUpsert = {
+      CheckWpapiDeltaUpsert = {
         Type = "Choice",
         Choices = [
           {
@@ -452,10 +452,10 @@ locals {
             Next = "CheckGenerateSitemapSeeds"
           }
         ],
-        Default = "DeltaUpsert"
+        Default = "WpapiDeltaUpsert"
       },
 
-      DeltaUpsert = {
+      WpapiDeltaUpsert = {
         Type     = "Task",
         Resource = "arn:aws:states:::glue:startJobRun.sync",
         Parameters = {
@@ -522,7 +522,7 @@ locals {
           }
         ],
         Next = "CheckCrawlUrlsHidden"  # or whatever the next stage should be
-      }
+      },
 
       CheckCrawlUrlsHidden = {
         Type = "Choice",
@@ -534,7 +534,7 @@ locals {
           }
         ],
         Default = "CrawlUrlsHidden"
-      }
+      },
 
       CrawlUrlsHidden = {
         Type     = "Task",
@@ -564,7 +564,7 @@ locals {
           }
         ],
         Next = "CheckCrawlUrlsNonHidden"
-      }
+      },
 
       CheckCrawlUrlsNonHidden = {
         Type = "Choice",
@@ -572,11 +572,11 @@ locals {
           {
             Variable      = "$.stages.crawl_urls_non_hidden",
             BooleanEquals = false,
-            Next          = "CheckClusterDestroy"
+            Next = "CheckSitemapsDeltaUpsert"
           }
         ],
         Default = "CrawlUrlsNonHidden"
-      }
+      },
 
       CrawlUrlsNonHidden = {
         Type     = "Task",
@@ -605,8 +605,49 @@ locals {
             Next = "CheckClusterDestroy"
           }
         ],
+        Next = "CheckSitemapsDeltaUpsert"
+      },
+
+      CheckSitemapsDeltaUpsert = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.stages.sitemaps_delta_upsert",
+            BooleanEquals = false,
+            Next          = "CheckClusterDestroy"
+          }
+        ],
+        Default = "SitemapsDeltaUpsert"
+      },
+
+      SitemapsDeltaUpsert = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::glue:startJobRun.sync",
+        Parameters = {
+          JobName = var.wpapi_delta_upsert.job_name,
+          Arguments = {
+            "--stage" = "sm",
+            "--coalesce" = tostring(var.wpapi_delta_upsert.coalesce),
+            "--target_file_size" = tostring(var.wpapi_delta_upsert.target_file_size)
+          }
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 60,
+            MaxAttempts     = 2,
+            BackoffRate     = 2.0
+          }
+        ],
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            Next = "CheckClusterDestroy"
+          }
+        ],
         Next = "CheckClusterDestroy"
-      }
+      },
 
       CheckClusterDestroy = {
         Type = "Choice",

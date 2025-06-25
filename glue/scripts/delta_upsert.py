@@ -256,8 +256,7 @@ def main():
     ssm_keys = {
         "bucket": "/s3/bucket",
         "ip": "/crawl/path/ip_addresses",
-        "dataset": "/crawl/dataset/current",
-        "type": "/crawl/dataset/type",  # NEW
+        "dataset": "/crawl/dataset/current"
     }
     p = read_ssm_params(ssm_keys)
     stage = raw_args["stage"]
@@ -272,7 +271,7 @@ def main():
         df = transform_raw(raw_df, ip_df, stage)
 
         # OPTIONAL checkpoint to cut lineage depth
-        ckpt_path = f"s3://{raw_args['s3bucket']}/tmp/checkpoint-{import_id}"
+        ckpt_path = f"s3://{p['bucket']}/tmp/checkpoint-{import_id}"
         df.write.mode("overwrite").parquet(ckpt_path)
         df = spark.read.parquet(ckpt_path)
 
