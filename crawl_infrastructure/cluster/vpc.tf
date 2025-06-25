@@ -40,41 +40,50 @@ resource "null_resource" "cleanup_vpc_dependencies" {
 
       echo "Starting comprehensive VPC cleanup for ${self.triggers.vpc_id}"
 
-      # 1. Clean up Kubernetes-managed Load Balancers first
-      echo "=== Cleaning up Kubernetes Load Balancers ==="
+      # FIRST: Terminate all EKS cluster nodes
 
-      # Delete ALBs tagged with the cluster
-      for arn in $(aws elbv2 describe-load-balancers --region ${self.triggers.region} --query "LoadBalancers[?VpcId=='${self.triggers.vpc_id}'].LoadBalancerArn" --output text 2>/dev/null || echo ""); do
-        if [ ! -z "$arn" ]; then
-          echo "Deleting ALB: $arn"
-          aws elbv2 delete-load-balancer --region ${self.triggers.region} --load-balancer-arn $arn || true
+      echo "=== Terminating EKS Cluster Nodes ==="
+
+      # Find and terminate managed node group instances
+      for instance_id in $(aws ec2 describe-instances --region ${self.triggers.region} \
+        --filters "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+                  "Name=tag:kubernetes.io/cluster/${self.triggers.cluster_name},Values=owned,shared" \
+        --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$instance_id" ] && [ "$instance_id" != "None" ]; then
+          echo "Terminating EKS node: $instance_id"
+          aws ec2 terminate-instances --region ${self.triggers.region} --instance-ids $instance_id || true
         fi
       done
 
-      # Delete Classic ELBs
-      for name in $(aws elb describe-load-balancers --region ${self.triggers.region} --query "LoadBalancerDescriptions[?VpcId=='${self.triggers.vpc_id}'].LoadBalancerName" --output text 2>/dev/null || echo ""); do
-        if [ ! -z "$name" ]; then
-          echo "Deleting ELB: $name"
-          aws elb delete-load-balancer --region ${self.triggers.region} --load-balancer-name $name || true
+      # Find and terminate Karpenter-managed instances
+      for instance_id in $(aws ec2 describe-instances --region ${self.triggers.region} \
+        --filters "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+                  "Name=tag:karpenter.sh/discovery,Values=${self.triggers.cluster_name}" \
+        --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$instance_id" ] && [ "$instance_id" != "None" ]; then
+          echo "Terminating Karpenter node: $instance_id"
+          aws ec2 terminate-instances --region ${self.triggers.region} --instance-ids $instance_id || true
         fi
       done
 
-      # Wait for Load Balancers to be deleted
-      echo "Waiting 45 seconds for Load Balancers to be deleted..."
-      sleep 45
-
-      # 2. Release ALL Elastic IPs in the VPC
-      echo "=== Releasing Elastic IPs ==="
-      for allocation_id in $(aws ec2 describe-addresses --region ${self.triggers.region} --filters "Name=domain,Values=vpc" --query "Addresses[].AllocationId" --output text 2>/dev/null || echo ""); do
-        if [ ! -z "$allocation_id" ] && [ "$allocation_id" != "None" ]; then
-          echo "Disassociating EIP: $allocation_id"
-          aws ec2 disassociate-address --region ${self.triggers.region} --allocation-id $allocation_id 2>/dev/null || true
-          echo "Releasing EIP: $allocation_id"
-          aws ec2 release-address --region ${self.triggers.region} --allocation-id $allocation_id 2>/dev/null || true
+      # Find and terminate any instances with cluster name in tags
+      for instance_id in $(aws ec2 describe-instances --region ${self.triggers.region} \
+        --filters "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+                  "Name=tag:Name,Values=*${self.triggers.cluster_name}*" \
+        --query 'Reservations[].Instances[].InstanceId' --output text 2>/dev/null || echo ""); do
+        if [ ! -z "$instance_id" ] && [ "$instance_id" != "None" ]; then
+          echo "Terminating cluster-named node: $instance_id"
+          aws ec2 terminate-instances --region ${self.triggers.region} --instance-ids $instance_id || true
         fi
       done
 
-      # 3. Delete NAT Gateways
+      # Wait for instances to terminate
+      echo "Waiting 60 seconds for nodes to terminate..."
+      sleep 60
+
+
+
+      # Delete NAT Gateways
       echo "=== Deleting NAT Gateways ==="
       for nat_id in $(aws ec2 describe-nat-gateways --region ${self.triggers.region} --filter "Name=vpc-id,Values=${self.triggers.vpc_id}" --filter "Name=state,Values=available" --query 'NatGateways[].NatGatewayId' --output text 2>/dev/null || echo ""); do
         if [ ! -z "$nat_id" ] && [ "$nat_id" != "None" ]; then
@@ -83,7 +92,7 @@ resource "null_resource" "cleanup_vpc_dependencies" {
         fi
       done
 
-      # 4. Force delete ALL Network Interfaces in the VPC
+      # Force delete ALL Network Interfaces in the VPC
       echo "=== Deleting Network Interfaces ==="
       for eni_id in $(aws ec2 describe-network-interfaces --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --query 'NetworkInterfaces[?Status==`available`].NetworkInterfaceId' --output text 2>/dev/null || echo ""); do
         if [ ! -z "$eni_id" ] && [ "$eni_id" != "None" ]; then
@@ -92,7 +101,7 @@ resource "null_resource" "cleanup_vpc_dependencies" {
         fi
       done
 
-      # 5. Delete VPC Endpoints that might be blocking
+      # Delete VPC Endpoints that might be blocking
       echo "=== Deleting VPC Endpoints ==="
       for endpoint_id in $(aws ec2 describe-vpc-endpoints --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --query 'VpcEndpoints[].VpcEndpointId' --output text 2>/dev/null || echo ""); do
         if [ ! -z "$endpoint_id" ] && [ "$endpoint_id" != "None" ]; then
@@ -101,7 +110,7 @@ resource "null_resource" "cleanup_vpc_dependencies" {
         fi
       done
 
-      # 6. Delete Security Group Rules that might cause dependencies
+      # Delete Security Group Rules that might cause dependencies
       echo "=== Cleaning Security Group Rules ==="
       for sg_id in $(aws ec2 describe-security-groups --region ${self.triggers.region} --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text 2>/dev/null || echo ""); do
         if [ ! -z "$sg_id" ] && [ "$sg_id" != "None" ]; then
@@ -125,7 +134,7 @@ resource "null_resource" "cleanup_vpc_dependencies" {
       echo "=== Final wait for resource cleanup ==="
       sleep 60
 
-      # 7. Force detach Internet Gateway
+      # Force detach Internet Gateway
       echo "=== Detaching Internet Gateway ==="
       aws ec2 detach-internet-gateway --region ${self.triggers.region} --internet-gateway-id ${self.triggers.igw_id} --vpc-id ${self.triggers.vpc_id} 2>/dev/null || true
 
