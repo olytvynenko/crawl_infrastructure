@@ -1,7 +1,7 @@
 module "karpenter" {
 
   source       = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "~> 20.37"
+  version      = "~> 20.37"
   cluster_name = var.cluster_name
 
   create_access_entry = false
@@ -43,7 +43,7 @@ module "karpenter" {
 # }
 
 resource "helm_release" "karpenter" {
-  depends_on          = [module.karpenter]
+  depends_on = [module.karpenter]
   namespace           = "karpenter"
   create_namespace    = true
   name                = "karpenter"
@@ -51,7 +51,22 @@ resource "helm_release" "karpenter" {
   repository_username = var.repository_username
   repository_password = var.repository_password
   chart               = "karpenter"
-  version             = var.karpenter_chart_version
+  version = var.karpenter_chart_version
+
+  wait                       = false
+  wait_for_jobs             = false
+  disable_openapi_validation = true
+  disable_webhooks          = true
+  atomic                    = false
+  cleanup_on_fail           = false
+
+    lifecycle {
+    ignore_changes = [
+      repository_username,
+      repository_password
+    ]
+  }
+
 
   set {
     name  = "settings.clusterName"
@@ -64,7 +79,7 @@ resource "helm_release" "karpenter" {
   }
 
   set {
-    name = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     # 19 > 20
     # value = module.karpenter.irsa_arn
     value = module.karpenter.iam_role_arn
@@ -84,19 +99,6 @@ resource "helm_release" "karpenter" {
   set {
     name  = "settings.interruptionQueueName"
     value = module.karpenter.queue_name
-  }
-
-  lifecycle {
-    ignore_changes = [
-      repository_username,
-      repository_password
-    ]
-  }
-
-  provisioner "local-exec" {
-    when       = destroy
-    command    = "echo 'Skipping Helm uninstall during destroy'"
-    on_failure = continue
   }
 
 }
@@ -120,12 +122,36 @@ resource "kubectl_manifest" "karpenter_nodepool" {
 resource "kubectl_manifest" "karpenter_node_class" {
   yaml_body = templatefile("${path.module}/configs/karpenter-ec2nodeclass.yaml.tmpl", {
     cluster_name = var.cluster_name
-    role_name = var.iam_role_name
+    role_name    = var.iam_role_name
   })
   depends_on = [
     helm_release.karpenter
   ]
 }
+
+# Keep your existing helm_release as is, but add this:
+# resource "null_resource" "karpenter_cleanup" {
+#
+#   provisioner "local-exec" {
+#     when    = destroy
+#     command = <<-EOT
+#       # Try to clean up Karpenter resources before Helm uninstall
+#       kubectl --ignore-not-found=true delete nodepools --all || true
+#       kubectl --ignore-not-found=true delete ec2nodeclass --all || true
+#       sleep 5
+#     EOT
+#     on_failure = continue
+#   }
+#
+#     # This ensures cleanup runs BEFORE cluster destruction
+#   lifecycle {
+#     create_before_destroy = true
+#   }
+#
+#
+#   depends_on = [helm_release.karpenter]
+# }
+
 
 output "karpenter_irsa_arn" {
   value = module.karpenter.iam_role_arn
