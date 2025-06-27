@@ -123,8 +123,38 @@ class ClusterManager:
             self._run("apply", "-auto-approve")
 
     def destroy(self, wss: Iterable[str]):
+        """Remove the selected workspaces.
+
+        A two-step destroy is performed:
+
+        1. Try to delete the Karpenter Helm release and its CRs explicitly
+           (they often hold finalizers that would block the full destroy).
+           Errors in this step are logged but do **not** abort the run.
+        2. Run a normal, unconditional `terraform destroy`.
+        """
+        # Targets that frequently need explicit removal first
+        karpenter_targets: list[str] = [
+            "-target",
+            "module.karpenter.helm_release.karpenter",
+            "-target",
+            "module.karpenter.kubectl_manifest.karpenter_nodepool",
+            "-target",
+            "module.karpenter.kubectl_manifest.karpenter_node_class",
+        ]
+
         for ws in wss:
             self._workspace_select_or_create(ws)
+
+            # Step 1: best-effort cleanup of Karpenter resources
+            try:
+                self._run("destroy", "-auto-approve", *karpenter_targets)
+            except RuntimeError as exc:
+                # Log and continue – the full destroy will take care of leftovers
+                logging.warning(
+                    "targeted Karpenter destroy failed in workspace '%s': %s", ws, exc
+                )
+
+            # Step 2: remove everything else
             self._run("destroy", "-auto-approve")
 
     def resize(self, wss: Iterable[str], level: InstanceLevel):

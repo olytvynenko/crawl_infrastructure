@@ -52,7 +52,7 @@ module "karpenter" {
 }
 
 resource "null_resource" "merge_kubeconfig" {
-  count      = module.cluster.cluster_name != "" ? 1 : 0
+  count = module.cluster.cluster_name != "" ? 1 : 0
   depends_on = [module.cluster.cluster_id]
   triggers = {
     always = timestamp()
