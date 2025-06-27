@@ -85,7 +85,7 @@ def _clusters_from_config() -> List[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Cluster manager (unchanged core logic)
+# Cluster manager (core Terraform wrapper)
 # ─────────────────────────────────────────────────────────────────────────────
 class ClusterManager:
     def __init__(self, working_directory: str | Path):
@@ -145,9 +145,29 @@ class ClusterManager:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Ordered destroy helper (karpenter → cluster)
+# ─────────────────────────────────────────────────────────────────────────────
+def _ordered_destroy(repo_root: Path, workspaces: Iterable[str]) -> None:
+    """
+    Destroy the infrastructure in two steps:
+
+      1) ./crawl_infrastructure/karpenter
+      2) ./crawl_infrastructure/cluster
+    """
+    stacks = [
+        repo_root / "crawl_infrastructure" / "karpenter",
+        repo_root / "crawl_infrastructure" / "cluster",
+    ]
+    for stack_dir in stacks:
+        mgr = ClusterManager(stack_dir)
+        logging.info("=== Destroying stack in %s ===", stack_dir)
+        mgr.destroy(workspaces)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # CLI entry-point
 # ─────────────────────────────────────────────────────────────────────────────
-def main():
+def main() -> None:
     logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
 
     action = (os.getenv("ACTION") or "").lower()
@@ -155,19 +175,22 @@ def main():
         raise ParameterValidationError("ACTION env var not set")
 
     clusters = _clusters_from_config()
-
     repo_root = Path(__file__).resolve().parent
-    mgr = ClusterManager(repo_root / "crawl_infrastructure")
 
-    if action in {"create", "apply"}:
-        mgr.create(clusters)
-    elif action == "plan":
-        mgr.plan(clusters)
+    if action in {"create", "apply", "plan", "resize"}:
+        mgr = ClusterManager(repo_root / "crawl_infrastructure")
+
+        if action in {"create", "apply"}:
+            mgr.create(clusters)
+        elif action == "plan":
+            mgr.plan(clusters)
+        elif action == "resize":
+            level = InstanceLevel.from_str(os.getenv("LEVEL", ""))
+            mgr.resize(clusters, level)
+
     elif action == "destroy":
-        mgr.destroy(clusters)
-    elif action == "resize":
-        level = InstanceLevel.from_str(os.getenv("LEVEL", ""))
-        mgr.resize(clusters, level)
+        _ordered_destroy(repo_root, clusters)
+
     else:
         raise ParameterValidationError(f"unsupported ACTION '{action}'")
 

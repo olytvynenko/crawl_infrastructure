@@ -53,21 +53,6 @@ resource "helm_release" "karpenter" {
   chart               = "karpenter"
   version = var.karpenter_chart_version
 
-  wait                       = false
-  wait_for_jobs             = false
-  disable_openapi_validation = true
-  disable_webhooks          = true
-  atomic                    = false
-  cleanup_on_fail           = false
-
-    lifecycle {
-    ignore_changes = [
-      repository_username,
-      repository_password
-    ]
-  }
-
-
   set {
     name  = "settings.clusterName"
     value = var.cluster_name
