@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from botocore.exceptions import ParameterValidationError
+from exceptions import ParameterValidationError
 
 logging.basicConfig(
     level=logging.INFO,
