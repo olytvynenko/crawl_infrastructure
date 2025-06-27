@@ -85,6 +85,20 @@ resource "helm_release" "karpenter" {
     name  = "settings.interruptionQueueName"
     value = module.karpenter.queue_name
   }
+
+  lifecycle {
+    ignore_changes = [
+      repository_username,
+      repository_password
+    ]
+  }
+
+  provisioner "local-exec" {
+    when       = destroy
+    command    = "echo 'Skipping Helm uninstall during destroy'"
+    on_failure = continue
+  }
+
 }
 
 resource "kubectl_manifest" "karpenter_nodepool" {

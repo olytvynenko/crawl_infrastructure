@@ -77,4 +77,20 @@ variable "sitemap_generator" {
   }
 }
 
+###############################################################################
+# Parameters passed to kube_job.py
+###############################################################################
+variable "kube_jobs" {
+  type = object({
+    aws_region = string
+    repo_name  = string
+    branch     = string
+  })
+  default = {
+    aws_region = "us-east-1"
+    repo_name  = "kube-jobs"
+    branch     = "master"
+  }
+}
+
 

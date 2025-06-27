@@ -467,14 +467,6 @@ locals {
           }
         },
         ResultPath = null,
-        Retry = [
-          {
-            ErrorEquals = ["States.TaskFailed"],
-            IntervalSeconds = 60,
-            MaxAttempts     = 2,
-            BackoffRate     = 2.0
-          }
-        ],
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
@@ -632,14 +624,6 @@ locals {
           }
         },
         ResultPath = null,
-        Retry = [
-          {
-            ErrorEquals = ["States.TaskFailed"],
-            IntervalSeconds = 60,
-            MaxAttempts     = 2,
-            BackoffRate     = 2.0
-          }
-        ],
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
