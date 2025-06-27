@@ -88,7 +88,6 @@ class ClusterManager:
 
         for ws in workspaces:
             logging.info("→ Workspace '%s'", ws)
-            # The flag handles both select and create (noop if already there)
             self._workspace_select_or_create(ws)
             self._run("destroy", "-auto-approve")
 
@@ -98,7 +97,9 @@ class ClusterManager:
     @classmethod
     def cli(cls) -> None:
         parser = argparse.ArgumentParser(description="Terraform cluster manager")
-        sub = parser.add_subparsers(dest="command", required=True)
+
+        # “command” is optional – default is plain ‘init’
+        sub = parser.add_subparsers(dest="command")
 
         p_apply = sub.add_parser("apply", help="terraform apply")
         p_apply.add_argument("workspace", help="workspace to apply")
@@ -115,21 +116,24 @@ class ClusterManager:
         parser.add_argument(
             "-d",
             "--directory",
-            required=True,
-            help="path to terraform working directory",
+            default=".",  # current directory if omitted
+            help="path to terraform working directory (default: .)",
         )
 
         args = parser.parse_args()
-
         mgr = cls(args.directory)
 
         try:
-            if args.command == "apply":
+            # Default action ─────────────────────────────────────────────────
+            if args.command is None or args.command == "init":
+                mgr._run("init", "-input=false", "-upgrade")
+
+            # Explicit sub-commands ───────────────────────────────────────────
+            elif args.command == "apply":
                 mgr.apply(args.workspace)
             elif args.command == "destroy":
                 mgr.destroy(args.workspaces)
-            elif args.command == "init":
-                mgr._run("init", "-input=false", "-upgrade")
+
         except RuntimeError as exc:
             logging.error("✗ %s", exc)
             sys.exit(1)
