@@ -1,206 +1,140 @@
 #!/usr/bin/env python3
-"""
-cluster_manager.py – run Terraform inside ./crawl_infrastructure
-
-Configuration hierarchy
------------------------
-1. Environment variables
-   * ACTION    – create | plan | destroy | resize  (required)
-   * LEVEL     – inst4 | inst8 | inst16            (required for resize)
-   * CLUSTERS  – comma-separated list (fallback only)
-
-2. Parameter Store
-   * /crawl/clusters   (StringList “nv,nc,ohio,oregon”)
-
-The script requires a valid **terraform.tfvars.json** in crawl_infrastructure.
-"""
+# ─────────────────────────────────────────────────────────────────────────────
+#  Cluster Manager – thin wrapper around “terraform workspace/apply/destroy”
+# ─────────────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 
-import json
+import argparse
 import logging
-import os
 import subprocess
 import sys
-from enum import Enum
-from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, List
 
-import boto3
+from botocore.exceptions import ParameterValidationError
 
-# ─────────────────────────────────────────────────────────────────────────────
-# helpers
-# ─────────────────────────────────────────────────────────────────────────────
-class ParameterValidationError(ValueError):
-    """Raised on missing or invalid user input."""
-
-
-class InstanceLevel(str, Enum):
-    inst4 = "inst4"
-    inst8 = "inst8"
-    inst16 = "inst16"
-
-    @classmethod
-    def from_str(cls, value: str) -> "InstanceLevel":
-        try:
-            return InstanceLevel(value)
-        except ValueError as exc:
-            raise ParameterValidationError(
-                f"LEVEL must be one of {[m.value for m in cls]} (got '{value}')"
-            ) from exc
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(message)s",
+    stream=sys.stdout,
+)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Parameter Store helper
-# ─────────────────────────────────────────────────────────────────────────────
-_ssm = boto3.client("ssm")
-
-
-@lru_cache(maxsize=32)
-def _param(name: str) -> str | None:
-    """Return parameter value or None if missing."""
-    for candidate in (f"/crawl/{name}", name):
-        try:
-            res = _ssm.get_parameter(Name=candidate, WithDecryption=True)
-            return res["Parameter"]["Value"]
-        except _ssm.exceptions.ParameterNotFound:
-            continue
-    return None
-
-
-def _clusters_from_config() -> List[str]:
-    """
-    Resolve cluster list:
-
-      1. try Parameter Store  (/crawl/clusters) – StringList
-      2. fallback to $CLUSTERS env var
-    """
-    raw = _param("clusters") or os.getenv("CLUSTERS")
-    if not raw:
-        raise ParameterValidationError(
-            "cluster list not found: set /crawl/clusters (StringList) "
-            "or CLUSTERS env var"
-        )
-    return [c.strip() for c in raw.split(",") if c.strip()]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Cluster manager (core Terraform wrapper)
-# ─────────────────────────────────────────────────────────────────────────────
 class ClusterManager:
-    def __init__(self, working_directory: str | Path):
+    """
+    Operates a Terraform stack located in *working_directory*.
+    Keeps all Terraform commands isolated with the `-chdir=` flag so the
+    script can be invoked from any path.
+    """
+
+    # ───────────────────────────────────────────
+    # Construction
+    # ───────────────────────────────────────────
+    def __init__(self, working_directory: str | Path) -> None:
         self.wd = Path(working_directory).resolve()
         if not self.wd.is_dir():
             raise ParameterValidationError(f"working directory '{self.wd}' not found")
         self._chdir = f"-chdir={self.wd}"
         logging.debug("Terraform chdir flag: %s", self._chdir)
 
-    # ---------------- internal runners --------------------------------------
-    def _run(self, *args: str):
+    # ───────────────────────────────────────────
+    # Internal helpers
+    # ───────────────────────────────────────────
+    def _run(self, *args: str) -> None:
+        """Run *terraform <args>* – raise on non-zero exit code."""
         cmd = ["terraform", self._chdir, *args]
         logging.debug("$ %s", " ".join(cmd))
         result = subprocess.run(cmd, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"terraform {args[0]} failed (exit {result.returncode})")
 
-    def _workspace_select_or_create(self, ws: str):
-        if self._run("workspace", "select", ws) is None:
-            logging.info("Selected workspace '%s'", ws)
-            return
-        logging.info("Workspace '%s' missing – creating", ws)
-        self._run("workspace", "new", ws)
+    def _try(self, *args: str) -> bool:
+        """Same as _run but return *True*/*False* instead of raising."""
+        cmd = ["terraform", self._chdir, *args]
+        logging.debug("$ %s (try)", " ".join(cmd))
+        result = subprocess.run(cmd, text=True)
+        return result.returncode == 0
 
-    # ---------------- public actions ----------------------------------------
-    def plan(self, wss: Iterable[str]):
-        for ws in wss:
-            self._workspace_select_or_create(ws)
-            self._run("plan")
+    # ───────────────────────────────────────────
+    # Workspace handling
+    # ───────────────────────────────────────────
+    def _workspace_select_or_create(self, ws: str) -> None:
+        """
+        Select *ws* if it exists, otherwise create it.
+        Uses `terraform workspace select -or-create` which is atomic and
+        prevents TOCTOU races.
+        """
+        self._run("workspace", "select", "-or-create", ws)
 
-    def create(self, wss: Iterable[str]):
-        for ws in wss:
-            self._workspace_select_or_create(ws)
-            self._run("apply", "-auto-approve")
+    # ───────────────────────────────────────────
+    # Public operations
+    # ───────────────────────────────────────────
+    def apply(self, ws: str) -> None:
+        """
+        Initialise, select workspace, then run “terraform apply”.
+        """
+        logging.info("Applying stack in %s (workspace: %s)", self.wd, ws)
+        self._run("init", "-input=false", "-upgrade")
+        self._workspace_select_or_create(ws)
+        self._run("apply", "-auto-approve")
 
-    def destroy(self, wss: Iterable[str]):
-        for ws in wss:
+    def destroy(self, workspaces: list[str]) -> None:
+        """
+        Destroy the stack for each workspace in *workspaces*.
+        The backend is initialised first so Terraform can list/select remote
+        workspaces even when invoked in a fresh directory (e.g. CodeBuild).
+        """
+        logging.info("Destroying stack in %s", self.wd)
+        self._run("init", "-input=false", "-upgrade")
+
+        for ws in workspaces:
+            logging.info("→ Workspace '%s'", ws)
+            # The flag handles both select and create (noop if already there)
             self._workspace_select_or_create(ws)
             self._run("destroy", "-auto-approve")
 
-    def resize(self, wss: Iterable[str], level: InstanceLevel):
-        for ws in wss:
-            self._workspace_select_or_create(ws)
-            self._update_level(level)
-            self._run("apply", "-auto-approve")
+    # ───────────────────────────────────────────
+    # Convenience wrappers for CLI
+    # ───────────────────────────────────────────
+    @classmethod
+    def cli(cls) -> None:
+        parser = argparse.ArgumentParser(description="Terraform cluster manager")
+        sub = parser.add_subparsers(dest="command", required=True)
 
-    # ---------------- helpers ------------------------------------------------
-    def _update_level(self, level: InstanceLevel):
-        tfvars = self.wd / "terraform.tfvars.json"
-        if not tfvars.exists():
-            raise ParameterValidationError(f"{tfvars} missing – cannot resize")
-        with tfvars.open() as fp:
-            data = json.load(fp)
-        data["cluster_level"] = level.value
-        tfvars.write_text(json.dumps(data, indent=2))
-        logging.info("cluster_level set to %s", level.value)
+        p_apply = sub.add_parser("apply", help="terraform apply")
+        p_apply.add_argument("workspace", help="workspace to apply")
+
+        p_destroy = sub.add_parser("destroy", help="terraform destroy")
+        p_destroy.add_argument(
+            "workspaces",
+            nargs="+",
+            help="one or more workspaces to destroy",
+        )
+
+        p_init = sub.add_parser("init", help="terraform init only")
+
+        parser.add_argument(
+            "-d",
+            "--directory",
+            required=True,
+            help="path to terraform working directory",
+        )
+
+        args = parser.parse_args()
+
+        mgr = cls(args.directory)
+
+        try:
+            if args.command == "apply":
+                mgr.apply(args.workspace)
+            elif args.command == "destroy":
+                mgr.destroy(args.workspaces)
+            elif args.command == "init":
+                mgr._run("init", "-input=false", "-upgrade")
+        except RuntimeError as exc:
+            logging.error("✗ %s", exc)
+            sys.exit(1)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Ordered destroy helper (karpenter → cluster)
-# ─────────────────────────────────────────────────────────────────────────────
-def _ordered_destroy(repo_root: Path, workspaces: Iterable[str]) -> None:
-    """
-    Destroy the infrastructure in two steps:
-
-      1) ./crawl_infrastructure/karpenter
-      2) ./crawl_infrastructure/cluster
-    """
-    stacks = [
-        repo_root / "crawl_infrastructure" / "karpenter",
-        repo_root / "crawl_infrastructure" / "cluster",
-    ]
-    for stack_dir in stacks:
-        mgr = ClusterManager(stack_dir)
-        logging.info("=== Destroying stack in %s ===", stack_dir)
-        mgr.destroy(workspaces)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI entry-point
-# ─────────────────────────────────────────────────────────────────────────────
-def main() -> None:
-    logging.basicConfig(level=os.getenv("LOGLEVEL", "INFO"))
-
-    action = (os.getenv("ACTION") or "").lower()
-    if not action:
-        raise ParameterValidationError("ACTION env var not set")
-
-    clusters = _clusters_from_config()
-    repo_root = Path(__file__).resolve().parent
-
-    if action in {"create", "apply", "plan", "resize"}:
-        mgr = ClusterManager(repo_root / "crawl_infrastructure")
-
-        if action in {"create", "apply"}:
-            mgr.create(clusters)
-        elif action == "plan":
-            mgr.plan(clusters)
-        elif action == "resize":
-            level = InstanceLevel.from_str(os.getenv("LEVEL", ""))
-            mgr.resize(clusters, level)
-
-    elif action == "destroy":
-        _ordered_destroy(repo_root, clusters)
-
-    else:
-        raise ParameterValidationError(f"unsupported ACTION '{action}'")
-
-
 if __name__ == "__main__":
-    try:
-        main()
-    except ParameterValidationError as exc:
-        logging.error("%s", exc)
-        sys.exit(2)
-    except Exception as exc:
-        logging.exception("unhandled error: %s", exc)
-        sys.exit(1)
+    ClusterManager.cli()
