@@ -1,5 +1,5 @@
 ##############################################################################
-# 0. Terraform core & AWS provider
+#  ✨  Terraform core & AWS provider
 ##############################################################################
 terraform {
   required_version = ">= 1.3"
@@ -19,7 +19,7 @@ provider "aws" {
 data "aws_caller_identity" "this" {}
 
 ##############################################################################
-# 1. Optional S3 bucket for CodeBuild artifacts / logs
+#  ✨  Optional S3 bucket for CodeBuild artifacts / logs
 ##############################################################################
 resource "aws_s3_bucket" "pipeline_artifacts" {
   bucket        = "crawl-build-artifacts-${data.aws_caller_identity.this.account_id}"
@@ -53,7 +53,7 @@ locals {
 }
 
 ##############################################################################
-# 3. IAM role for Step Functions
+#  ✨  IAM role for Step Functions
 ##############################################################################
 
 data "aws_iam_policy_document" "sfn_assume" {
@@ -114,7 +114,37 @@ resource "aws_iam_role_policy" "sfn_codebuild" {
 }
 
 ##############################################################################
-# DynamoDB table for storing execution state
+#  ✨  Allow Step-Functions to invoke the new Lambda
+##############################################################################
+resource "aws_iam_role_policy" "sfn_invoke_lambda" {
+  name = "invoke-check-termination-lambda"
+  role = aws_iam_role.sfn_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action = ["lambda:InvokeFunction"],
+        Resource = aws_lambda_function.check_resource_termination.arn
+      },
+      {
+        Effect   = "Allow",
+        Action = ["lambda:InvokeFunction"],
+        Resource = aws_lambda_function.check_s3_deletions.arn
+      },
+      {
+        Effect   = "Allow",
+        Action = ["ses:SendEmail", "ses:SendRawEmail"],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+
+##############################################################################
+#  ✨  DynamoDB table for storing execution state
 ##############################################################################
 
 resource "aws_dynamodb_table" "execution_checkpoints" {
@@ -139,7 +169,7 @@ resource "aws_dynamodb_table" "execution_checkpoints" {
 }
 
 ##############################################################################
-# Enhanced IAM permissions for state management
+#  ✨  Enhanced IAM permissions for state management
 ##############################################################################
 resource "aws_iam_role_policy" "sfn_state_management" {
   name = "state-management-permissions"
@@ -164,7 +194,9 @@ resource "aws_iam_role_policy" "sfn_state_management" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:DeleteObject",
+          "s3:DeleteObjects"
         ],
         Resource = [
           aws_s3_bucket.pipeline_artifacts.arn,
@@ -177,7 +209,7 @@ resource "aws_iam_role_policy" "sfn_state_management" {
 
 
 ##############################################################################
-# 4. Step Functions state machine with unconditional destroy and conditional upsert
+#  ✨  Step Functions state machine with unconditional destroy and conditional upsert
 ##############################################################################
 locals {
   retry_specific = {
@@ -639,7 +671,7 @@ locals {
           {
             Variable      = "$.stages.cluster_destroy",
             BooleanEquals = false,
-            Next          = "Success"
+            Next = "VerifyResourceTermination"
           }
         ],
         Default = "ClusterDestroy"
@@ -655,9 +687,27 @@ locals {
             { Name = "CLUSTERS", Type = "PLAINTEXT", Value = "nv" }
           ]
         },
-        ResultPath = null,
-        Next = "Success"
+        ResultPath = "$.stages.cluster_destroy.error",
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            "ResultPath" : "$.stages.cluster_destroy.error",
+            Next = "VerifyResourceTermination"
+          }
+        ],
+        Next = "VerifyResourceTermination"
       },
+
+      VerifyResourceTermination = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.check_resource_termination.arn,
+          Payload = {}
+        },
+        ResultPath = null,
+        Next       = "Success"
+      }
 
       Success = {
         Type = "Succeed"
@@ -671,7 +721,6 @@ locals {
   })
 }
 
-
 resource "aws_sfn_state_machine" "crawl" {
   name       = "crawl-build-state-machine"
   role_arn   = aws_iam_role.sfn_role.arn
@@ -679,7 +728,7 @@ resource "aws_sfn_state_machine" "crawl" {
 }
 
 ##############################################################################
-# 5. Outputs
+#  ✨  Outputs
 ##############################################################################
 output "state_machine_arn" {
   value       = aws_sfn_state_machine.crawl.arn

@@ -25,9 +25,9 @@ from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List
-
 import boto3
 
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # helpers
@@ -83,6 +83,67 @@ def _clusters_from_config() -> List[str]:
             "or CLUSTERS env var"
         )
     return [c.strip() for c in raw.split(",") if c.strip()]
+
+
+# ---------------------------------------------------------------------------#
+# Helper utilities (kept local to avoid an extra import dependency)
+# ---------------------------------------------------------------------------#
+def _get_tag_keys() -> list[str]:
+    """Return the list of tag keys that identify cluster resources.
+
+    Uses the same environment variables as the Lambda checker so the two
+    components stay in sync.
+    """
+    raw = os.getenv("TAG_KEYS", "")
+    if raw:
+        try:
+            keys = json.loads(raw)
+            if not isinstance(keys, list):
+                raise ValueError
+            return [k for k in keys if isinstance(k, str) and k.strip()]
+        except Exception:
+            logger.warning("TAG_KEYS is not a valid JSON array, ignoring")
+
+    legacy = os.getenv("TAG_KEY")
+    return [legacy] if legacy else []
+
+
+def _delete_orphan_enis(tag_keys: list[str]) -> None:
+    """Remove all detached ENIs that still carry one of *tag_keys*.
+
+    Only interfaces whose `Status` is already `available` are deleted so we
+    never touch resources that are genuinely in use.
+    """
+    if not tag_keys:
+        logger.info("No tag keys provided – skipping orphan-ENI cleanup")
+        return
+
+    ec2 = boto3.client("ec2")
+    filters = [
+        {"Name": "status", "Values": ["available"]},
+        {"Name": "tag-key", "Values": tag_keys},
+    ]
+
+    paginator = ec2.get_paginator("describe_network_interfaces")
+    orphan_ids: list[str] = []
+
+    for page in paginator.paginate(Filters=filters):
+        orphan_ids.extend(
+            eni["NetworkInterfaceId"] for eni in page["NetworkInterfaces"]
+        )
+
+    if not orphan_ids:
+        logger.info("No orphan ENIs found")
+        return
+
+    logger.info("Deleting %d orphan ENIs: %s", len(orphan_ids), orphan_ids)
+    for eni_id in orphan_ids:
+        try:
+            ec2.delete_network_interface(NetworkInterfaceId=eni_id)
+            logger.debug("Deleted ENI %s", eni_id)
+        except Exception as exc:  # broad catch – we want to keep destroying
+            logger.warning("Failed to delete ENI %s: %s", eni_id, exc)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,6 +217,13 @@ class ClusterManager:
 
             # Step 2: remove everything else
             self._run("destroy", "-auto-approve")
+
+            # Step 3 – orphan ENI cleanup
+            try:
+                _delete_orphan_enis(tag_keys=_get_tag_keys())
+            except Exception as exc:  # never abort overall destroy
+                logger.warning("Orphan-ENI cleanup failed: %s", exc)
+
 
     def resize(self, wss: Iterable[str], level: InstanceLevel):
         for ws in wss:

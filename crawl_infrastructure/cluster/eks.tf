@@ -70,7 +70,6 @@ module "eks" {
     "karpenter.sh/discovery" = local.cluster_name
   }
 
-
 }
 
 

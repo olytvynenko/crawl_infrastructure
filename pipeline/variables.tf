@@ -1,5 +1,7 @@
+variable "base_aws_region" { default = "us-east-1" }
+
 ##############################################################################
-# 2. CodeBuild project names
+#  ✨  CodeBuild project names
 ##############################################################################
 variable "cluster_manager_project" { default = "cluster-manager" }
 variable "crawler_arm_build_project" { default = "crawler-arm-build" }
@@ -22,13 +24,13 @@ variable "sitemap_seed_generator_project" {
 }
 
 ########################################################
-# Glue Jobs Variables
+#  ✨  Glue Jobs Variables
 ########################################################
 variable "s3_bucket" { default = "linxact" }
 variable "s3_prefix" { default = "glue-scripts" }
 
 ########################################################
-# Delta Upsert Job Configuration
+#  ✨  Delta Upsert Job Configuration
 ########################################################
 variable "wpapi_delta_upsert" {
   type = object({
@@ -55,7 +57,7 @@ variable "wpapi_delta_upsert" {
 }
 
 ########################################################
-# Sitemap Seed Generator Job Configuration
+#  ✨  Sitemap Seed Generator Job Configuration
 ########################################################
 variable "sitemap_generator" {
   type = object({
@@ -78,7 +80,7 @@ variable "sitemap_generator" {
 }
 
 ###############################################################################
-# Parameters passed to kube_job.py
+#  ✨  Parameters passed to kube_job.py
 ###############################################################################
 variable "kube_jobs" {
   type = object({
@@ -92,5 +94,34 @@ variable "kube_jobs" {
     branch     = "master"
   }
 }
+
+###############################################################################
+#  ✨  Input for the messanger
+###############################################################################
+variable "messenger_webhook_url" {
+  description = "Incoming webhook URL for Slack/Teams/etc. Leave blank to disable."
+  type        = string
+  default     = ""
+}
+
+variable "ec2_tag_key" {
+  description = "Optional tag key to mark instances that are subject to auto-deletion"
+  type        = string
+  default     = "AutoDelete"
+}
+
+variable "ec2_tag_value" {
+  description = "Optional tag value to mark instances that are subject to auto-deletion"
+  type        = string
+  default     = "true"
+}
+
+variable "tag_keys" {
+  description = "Tag keys that the Lambda should look for on EC2 instances"
+  type = list(string)
+  default = ["eks:cluster-name", "karpenter.sh/discovery"]     # add or override in *.tfvars as needed
+}
+
+
 
 
