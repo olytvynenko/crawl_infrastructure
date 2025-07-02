@@ -687,11 +687,11 @@ locals {
             { Name = "CLUSTERS", Type = "PLAINTEXT", Value = "nv" }
           ]
         },
-        ResultPath = "$.stages.cluster_destroy.error",
+        ResultPath = null,
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
-            "ResultPath" : "$.stages.cluster_destroy.error",
+            ResultPath = null,
             Next = "VerifyResourceTermination"
           }
         ],
