@@ -365,8 +365,7 @@ resource "aws_iam_policy" "codebuild_cluster_manager" {
   policy      = data.aws_iam_policy_document.codebuild_cluster_manager.json
 }
 
-# Data source for current AWS account
-data "aws_caller_identity" "current" {}
+# Data source for current AWS account is defined in glue_jobs.tf
 
 # Least-privilege IAM policy for CodeBuild crawler runner
 data "aws_iam_policy_document" "codebuild_crawler_runner" {
