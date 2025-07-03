@@ -184,6 +184,10 @@ fabric.properties
 # idea folder, uncomment if you don't need it
 # .idea
 
+# Ignore all XML and IML files
+*.xml
+*.iml
+
 # Local .terraform directories
 **/.terraform/*
 
