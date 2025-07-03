@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   variables:
-    TERRAFORM_VERSION: "1.7.4"
+    TERRAFORM_VERSION: "1.12.2"
 
 phases:
   install:
