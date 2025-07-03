@@ -12,6 +12,7 @@ module "crawler_ci" {
   source = "./modules/crawler-ci"   # local path
   repo_name = var.kube_jobs.repo_name
   branch    = var.kube_jobs.branch
+  crawler_runner_policy_arn = aws_iam_policy.codebuild_crawler_runner.arn
 }
 
 resource "aws_codecommit_repository" "kube_jobs" {

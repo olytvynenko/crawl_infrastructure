@@ -28,10 +28,10 @@ resource "aws_iam_role" "cb_role" {
   assume_role_policy = data.aws_iam_policy_document.assume_codebuild.json
 }
 
-# Broad permissions for first run – tighten later if desired
-resource "aws_iam_role_policy_attachment" "cb_admin" {
+# Least-privilege permissions for crawler runner
+resource "aws_iam_role_policy_attachment" "cb_crawler_runner" {
   role       = aws_iam_role.cb_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+  policy_arn = var.crawler_runner_policy_arn
 }
 
 ########################################

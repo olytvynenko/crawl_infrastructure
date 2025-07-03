@@ -14,3 +14,8 @@ variable "codebuild_project" {
   type        = string
   default     = "crawler-runner"
 }
+
+variable "crawler_runner_policy_arn" {
+  description = "ARN of the IAM policy for the crawler runner CodeBuild role"
+  type        = string
+}

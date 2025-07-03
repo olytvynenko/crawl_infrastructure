@@ -20,9 +20,9 @@ resource "aws_iam_role" "cb_role" {
   assume_role_policy = data.aws_iam_policy_document.cb_assume.json
 }
 
-resource "aws_iam_role_policy_attachment" "cb_admin" {
+resource "aws_iam_role_policy_attachment" "cb_cluster_manager" {
   role       = aws_iam_role.cb_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+  policy_arn = aws_iam_policy.codebuild_cluster_manager.arn
 }
 
 ###############################################################################

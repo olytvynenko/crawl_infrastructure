@@ -4,7 +4,7 @@
 data "aws_partition" "this" {}
 
 ###############################################################################
-# Build the policy ARN for AWSAdministratorAccess
+# Build the policy ARN for EKS Cluster Admin Access
 ###############################################################################
 locals {
   admin_policy_arn = "arn:${data.aws_partition.this.partition}:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
