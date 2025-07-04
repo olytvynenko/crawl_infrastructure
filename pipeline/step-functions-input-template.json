@@ -1,4 +1,5 @@
 {
+  "notifications_enabled": true,
   "stages": {
     "crawler_arm_build": false,
     "cluster_create": false,

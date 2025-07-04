@@ -235,8 +235,38 @@ locals {
   # Complete enhanced state machine with all checkpoints
   enhanced_state_machine_definition = jsonencode({
     Comment = "Crawling pipeline with dynamic stage skipping",
-    StartAt = "CheckCrawlerArmBuild",
+    StartAt = "CheckNotificationsForStart",
     States = {
+      CheckNotificationsForStart = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckCrawlerArmBuild"
+          }
+        ],
+        Default = "NotifyPipelineStart"
+      },
+
+      NotifyPipelineStart = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "PipelineStart",
+            "status" = "STARTED",
+            "details" = {
+              "message" = "Pipeline execution started",
+              "stages" = "$.stages"
+            }
+          }
+        },
+        ResultPath = null,
+        Next = "CheckCrawlerArmBuild"
+      },
+
       CheckCrawlerArmBuild = {
         Type = "Choice",
         Choices = [
@@ -270,24 +300,6 @@ locals {
             Next = "HandleFailure"
           }
         ],
-        Next = "NotifyCrawlerArmBuildComplete"
-      },
-
-      NotifyCrawlerArmBuildComplete = {
-        Type     = "Task",
-        Resource = "arn:aws:states:::lambda:invoke",
-        Parameters = {
-          FunctionName = aws_lambda_function.stage_notification.arn,
-          Payload = {
-            "stage_name" = "CrawlerArmBuild",
-            "status" = "SUCCESS",
-            "details" = {
-              "project_name" = var.crawler_arm_build_project,
-              "message" = "Crawler ARM build completed successfully"
-            }
-          }
-        },
-        ResultPath = null,
         Next = "CheckClusterCreate"
       },
 
@@ -328,6 +340,38 @@ locals {
             Next = "HandleFailure"
           }
         ],
+        Next = "CheckNotificationsForClusterCreate"
+      },
+
+      CheckNotificationsForClusterCreate = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckCrawlWpapiHidden"
+          }
+        ],
+        Default = "NotifyClusterCreateSuccess"
+      },
+
+      NotifyClusterCreateSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "ClusterCreate",
+            "status" = "SUCCESS",
+            "admin_only" = true,
+            "details" = {
+              "message" = "EKS cluster created successfully",
+              "action" = "create",
+              "resource" = "cluster"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "CheckCrawlWpapiHidden"
       },
 
@@ -368,10 +412,22 @@ locals {
           {
             ErrorEquals = ["States.ALL"],
             ResultPath = "$.error_info",
-            Next = "NotifyCrawlWpapiHiddenFailure"
+            Next = "CheckNotificationsForCrawlWpapiHiddenFailure"
           }
         ],
-        Next = "NotifyCrawlWpapiHiddenSuccess"
+        Next = "CheckNotificationsForCrawlWpapiHidden"
+      },
+
+      CheckNotificationsForCrawlWpapiHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckCrawlWpapiNonHidden"
+          }
+        ],
+        Default = "NotifyCrawlWpapiHiddenSuccess"
       },
 
       NotifyCrawlWpapiHiddenSuccess = {
@@ -399,6 +455,18 @@ locals {
           }
         ],
         Next = "CheckCrawlWpapiNonHidden"
+      },
+
+      CheckNotificationsForCrawlWpapiHiddenFailure = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "HandleFailure"
+          }
+        ],
+        Default = "NotifyCrawlWpapiHiddenFailure"
       },
 
       NotifyCrawlWpapiHiddenFailure = {
@@ -566,6 +634,37 @@ locals {
             Next = "CheckClusterDestroy"
           }
         ],
+        Next = "CheckNotificationsForCrawlSitemapHidden"
+      },
+
+      CheckNotificationsForCrawlSitemapHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckCrawlSitemapNonHidden"
+          }
+        ],
+        Default = "NotifyCrawlSitemapHiddenSuccess"
+      },
+
+      NotifyCrawlSitemapHiddenSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "CrawlSitemapHidden",
+            "status" = "SUCCESS",
+            "details" = {
+              "dataset_type" = "h",
+              "workflow" = "sitemaps",
+              "message" = "Sitemap hidden content crawl completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "CheckCrawlSitemapNonHidden"
       },
 
@@ -608,6 +707,37 @@ locals {
             Next = "CheckClusterDestroy"
           }
         ],
+        Next = "CheckNotificationsForCrawlSitemapNonHidden"
+      },
+
+      CheckNotificationsForCrawlSitemapNonHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckWpapiDeltaUpsert"
+          }
+        ],
+        Default = "NotifyCrawlSitemapNonHiddenSuccess"
+      },
+
+      NotifyCrawlSitemapNonHiddenSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "CrawlSitemapNonHidden",
+            "status" = "SUCCESS",
+            "details" = {
+              "dataset_type" = "nh",
+              "workflow" = "sitemaps",
+              "message" = "Sitemap non-hidden content crawl completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "CheckWpapiDeltaUpsert"
       },
 
@@ -723,6 +853,37 @@ locals {
             Next = "CheckCrawlUrlsNonHidden"
           }
         ],
+        Next = "CheckNotificationsForCrawlUrlsHidden"
+      },
+
+      CheckNotificationsForCrawlUrlsHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckCrawlUrlsNonHidden"
+          }
+        ],
+        Default = "NotifyCrawlUrlsHiddenSuccess"
+      },
+
+      NotifyCrawlUrlsHiddenSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "CrawlUrlsHidden",
+            "status" = "SUCCESS",
+            "details" = {
+              "dataset_type" = "h",
+              "workflow" = "urls",
+              "message" = "URL hidden content crawl completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "CheckCrawlUrlsNonHidden"
       },
 
@@ -765,6 +926,37 @@ locals {
             Next = "CheckClusterDestroy"
           }
         ],
+        Next = "CheckNotificationsForCrawlUrlsNonHidden"
+      },
+
+      CheckNotificationsForCrawlUrlsNonHidden = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckSitemapsDeltaUpsert"
+          }
+        ],
+        Default = "NotifyCrawlUrlsNonHiddenSuccess"
+      },
+
+      NotifyCrawlUrlsNonHiddenSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "CrawlUrlsNonHidden",
+            "status" = "SUCCESS",
+            "details" = {
+              "dataset_type" = "nh",
+              "workflow" = "urls",
+              "message" = "URL non-hidden content crawl completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "CheckSitemapsDeltaUpsert"
       },
 
@@ -831,6 +1023,38 @@ locals {
             Next = "VerifyResourceTermination"
           }
         ],
+        Next = "CheckNotificationsForClusterDestroy"
+      },
+
+      CheckNotificationsForClusterDestroy = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "VerifyResourceTermination"
+          }
+        ],
+        Default = "NotifyClusterDestroySuccess"
+      },
+
+      NotifyClusterDestroySuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "ClusterDestroy",
+            "status" = "SUCCESS",
+            "admin_only" = true,
+            "details" = {
+              "message" = "EKS cluster destroyed successfully",
+              "action" = "destroy",
+              "resource" = "cluster"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "VerifyResourceTermination"
       },
 

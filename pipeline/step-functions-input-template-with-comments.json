@@ -1,6 +1,7 @@
 {
-  "_comment": "This template shows all available stages that can be controlled in the Step Functions pipeline",
+  "_comment": "This template shows all available parameters that can be controlled in the Step Functions pipeline",
   "_usage": "Set stage values to true to execute them, or false to skip them. If a stage is not specified, it defaults to being executed.",
+  "notifications_enabled": true,    // Set to false to disable all email notifications
   "stages": {
     "crawler_arm_build": false,           // Build ARM-based crawler Docker image
     "cluster_create": false,              // Create EKS cluster infrastructure

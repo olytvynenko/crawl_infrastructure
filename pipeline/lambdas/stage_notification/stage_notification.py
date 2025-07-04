@@ -25,12 +25,14 @@ ses = boto3.client("ses")
 try:
     response = ssm.get_parameter(Name="/email/admin")
     SENDER = response["Parameter"]["Value"]
+    ADMIN_EMAIL = SENDER  # Store admin email separately
 except Exception as e:
     logger.error(f"Failed to fetch admin email from Parameter Store: {e}")
     SENDER = None
+    ADMIN_EMAIL = None
 
-# Get admin emails from environment variable
-admins = os.getenv("ADMIN_EMAILS", "").split(",")
+# Get regular notification emails from environment variable
+regular_admins = os.getenv("ADMIN_EMAILS", "").split(",")
 
 # Stage descriptions for human-readable names
 STAGE_DESCRIPTIONS = {
@@ -46,7 +48,9 @@ STAGE_DESCRIPTIONS = {
     "CrawlUrlsNonHidden": "Individual URL Crawl (Non-Hidden Content)",
     "SitemapsDeltaUpsert": "Sitemap Data Delta Lake Update",
     "ClusterDestroy": "EKS Cluster Infrastructure Cleanup",
-    "VerifyResourceTermination": "Resource Termination Verification"
+    "VerifyResourceTermination": "Resource Termination Verification",
+    "PipelineScheduled": "Pipeline Scheduled Execution",
+    "PipelineStart": "Pipeline Execution Started"
 }
 
 
@@ -78,6 +82,18 @@ def generate_html_content(
         status_text = "Completed Successfully"
         header_bg = "#d4edda"
         header_border = "#c3e6cb"
+    elif status == "SCHEDULED":
+        status_color = "#007bff"
+        status_icon = "📅"
+        status_text = "Scheduled"
+        header_bg = "#cce5ff"
+        header_border = "#b8daff"
+    elif status == "STARTED":
+        status_color = "#17a2b8"
+        status_icon = "🚀"
+        status_text = "Started"
+        header_bg = "#d1ecf1"
+        header_border = "#bee5eb"
     else:
         status_color = "#dc3545"
         status_icon = "❌"
@@ -184,7 +200,8 @@ def send_notification(
     stage_name: str,
     status: str,
     details: Dict[str, Any] = None,
-    error_message: str = None
+    error_message: str = None,
+    admin_only: bool = False
 ) -> None:
     """
     Send email notification about stage completion.
@@ -194,14 +211,23 @@ def send_notification(
         status: Either "SUCCESS" or "FAILED"
         details: Additional details about the stage execution
         error_message: Error message if the stage failed
+        admin_only: If True, send only to admin email from Parameter Store
     """
     if not SENDER:
         logger.error("Cannot send email: SENDER is not configured")
         return
     
-    if not admins:
-        logger.warning("No admin emails configured")
-        return
+    # Determine recipients based on admin_only flag
+    if admin_only:
+        if not ADMIN_EMAIL:
+            logger.error("Cannot send admin-only email: ADMIN_EMAIL is not configured")
+            return
+        recipients = [ADMIN_EMAIL]
+    else:
+        if not regular_admins:
+            logger.warning("No regular admin emails configured")
+            return
+        recipients = regular_admins
     
     # Prepare email content
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -210,6 +236,10 @@ def send_notification(
     # Generate subject
     if status == "SUCCESS":
         subject = f"✅ Pipeline Success: {human_readable_stage}"
+    elif status == "SCHEDULED":
+        subject = f"📅 Pipeline Scheduled: {human_readable_stage}"
+    elif status == "STARTED":
+        subject = f"🚀 Pipeline Started: {human_readable_stage}"
     else:
         subject = f"❌ Pipeline Failed: {human_readable_stage}"
     
@@ -236,7 +266,7 @@ This is an automated notification from the crawl pipeline.
     try:
         ses.send_email(
             Source=SENDER,
-            Destination={"ToAddresses": [email.strip() for email in admins if email.strip()]},
+            Destination={"ToAddresses": [email.strip() for email in recipients if email.strip()]},
             Message={
                 "Subject": {"Data": subject},
                 "Body": {
@@ -264,7 +294,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "workflow": "wordpress",
             "execution_time": 123
         },
-        "error": "Error message if failed"
+        "error": "Error message if failed",
+        "admin_only": true/false  # Optional, defaults to false
     }
     """
     logger.info(f"Received event: {json.dumps(event)}")
@@ -274,10 +305,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     status = event.get("status", "UNKNOWN")
     details = event.get("details", {})
     error_message = event.get("error")
+    admin_only = event.get("admin_only", False)
     
     # Send notification
     try:
-        send_notification(stage_name, status, details, error_message)
+        send_notification(stage_name, status, details, error_message, admin_only)
         return {
             "statusCode": 200,
             "body": json.dumps({
