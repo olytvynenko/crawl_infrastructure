@@ -28,6 +28,8 @@ module "cluster" {
   azs                 = local.env[terraform.workspace]["azs"]
   repository_username = data.aws_ecrpublic_authorization_token.token.user_name
   repository_password = data.aws_ecrpublic_authorization_token.token.password
+  eks_admin_username  = var.eks_admin_username
+  codebuild_role_name = var.codebuild_role_name
 }
 
 module "karpenter" {

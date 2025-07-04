@@ -154,3 +154,15 @@ variable "backend_prefix" {
 }
 
 
+
+variable "eks_admin_username" {
+  description = "IAM username to grant EKS cluster admin access"
+  type        = string
+  default     = "olexiy"
+}
+
+variable "codebuild_role_name" {
+  description = "IAM role name for CodeBuild to access EKS"
+  type        = string
+  default     = "crawler-runner-role"
+}

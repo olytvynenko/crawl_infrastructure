@@ -4,6 +4,11 @@
 data "aws_partition" "this" {}
 
 ###############################################################################
+# Get current AWS account ID
+###############################################################################
+data "aws_caller_identity" "current" {}
+
+###############################################################################
 # Build the policy ARN for EKS Cluster Admin Access
 ###############################################################################
 locals {
@@ -15,7 +20,7 @@ locals {
 ###############################################################################
 resource "aws_eks_access_entry" "console_user" {
   cluster_name  = module.cluster.cluster_name
-  principal_arn = "arn:aws:iam::411623750878:user/olexiy"
+  principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.eks_admin_username}"
 }
 
 resource "aws_eks_access_policy_association" "console_user_admin" {

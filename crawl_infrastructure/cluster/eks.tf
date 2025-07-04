@@ -10,7 +10,7 @@ module "eks" {
   # --- ⬇️ new: authorise CodeBuild role ----------------------------
   access_entries = {
     codebuild = {
-      principal_arn = "arn:aws:iam::411623750878:role/crawler-runner-role"
+      principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.codebuild_role_name}"
       # type = "STANDARD"
 
       # attach a managed policy that gives full cluster access

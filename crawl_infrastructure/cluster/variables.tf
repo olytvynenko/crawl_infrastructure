@@ -41,3 +41,13 @@ variable "azs" {
   type    = list(string)
   default = []
 }
+
+variable "eks_admin_username" {
+  description = "IAM username to grant EKS cluster admin access"
+  type        = string
+}
+
+variable "codebuild_role_name" {
+  description = "IAM role name for CodeBuild to access EKS"
+  type        = string
+}
