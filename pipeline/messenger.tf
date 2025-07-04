@@ -91,11 +91,14 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Effect   = "Allow"
         Resource = "*"
       },
-      # read the admin e-mail list ------------------------------------------
+      # read the admin e-mail list and sender email ------------------------
       {
         Effect   = "Allow",
         Action = ["ssm:GetParameter"],
-        Resource = "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/admins"
+        Resource = [
+          "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/admins",
+          "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/admin"
+        ]
       },
       # send e-mails via SES -------------------------------------------------
       {

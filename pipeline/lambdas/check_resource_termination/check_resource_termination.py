@@ -10,7 +10,14 @@ ec2 = boto3.client("ec2")
 ssm = boto3.client("ssm")
 ses = boto3.client("ses")  # requires verified sender in SES
 
-SENDER = "alex@fromkyiv.com"  # <-- replace with a verified address
+# Fetch sender email from Parameter Store
+try:
+    response = ssm.get_parameter(Name="/email/admin")
+    SENDER = response["Parameter"]["Value"]
+except Exception as e:
+    logger.error(f"Failed to fetch admin email from Parameter Store: {e}")
+    SENDER = None
+
 admins = os.getenv("ADMIN_EMAILS", "").split(",")
 
 
@@ -52,6 +59,10 @@ def offending_instances(tag_keys: list[str]) -> list[str]:
 
 
 def send_email(recipients: list[str], instances: list[str]) -> None:
+    if not SENDER:
+        logger.error("Cannot send email: SENDER is not configured")
+        return
+        
     if instances:
         body = (
             "The following EKS EC2 instances were expected to be terminated "
