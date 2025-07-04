@@ -135,6 +135,11 @@ resource "aws_iam_role_policy" "sfn_invoke_lambda" {
       },
       {
         Effect   = "Allow",
+        Action = ["lambda:InvokeFunction"],
+        Resource = aws_lambda_function.stage_notification.arn
+      },
+      {
+        Effect   = "Allow",
         Action = ["ses:SendEmail", "ses:SendRawEmail"],
         Resource = "*"
       }
@@ -225,6 +230,7 @@ locals {
     BackoffRate     = 2.0
     MaxAttempts     = 3
   }
+
 
   # Complete enhanced state machine with all checkpoints
   enhanced_state_machine_definition = jsonencode({
@@ -331,7 +337,7 @@ locals {
             { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/${var.wpapi_delta_upsert.stage}/" }
           ]
         },
-        ResultPath = null,
+        ResultPath = "$.crawl_result",
         Retry = [
           {
             ErrorEquals = ["States.TaskFailed"],
@@ -343,10 +349,66 @@ locals {
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
-            Next = "CheckClusterDestroy"
+            ResultPath = "$.error_info",
+            Next = "NotifyCrawlWpapiHiddenFailure"
+          }
+        ],
+        Next = "NotifyCrawlWpapiHiddenSuccess"
+      },
+
+      NotifyCrawlWpapiHiddenSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            stage_name = "CrawlWpapiHidden",
+            status = "SUCCESS",
+            details = {
+              dataset_type = "h",
+              workflow = "wordpress",
+              message = "WordPress API hidden content crawl completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 2,
+            MaxAttempts     = 2,
+            BackoffRate     = 1.5
           }
         ],
         Next = "CheckCrawlWpapiNonHidden"
+      },
+
+      NotifyCrawlWpapiHiddenFailure = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            stage_name = "CrawlWpapiHidden",
+            status = "FAILED",
+            "error.$" = "$.error_info.Error",
+            details = {
+              dataset_type = "h",
+              workflow = "wordpress",
+              message = "WordPress API hidden content crawl failed"
+            }
+          }
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 2,
+            MaxAttempts     = 2,
+            BackoffRate     = 1.5
+          }
+        ],
+        Next = "CheckClusterDestroy"
       },
 
       CheckCrawlWpapiNonHidden = {
@@ -373,7 +435,7 @@ locals {
             { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/${var.wpapi_delta_upsert.stage}/" }
           ]
         },
-        ResultPath = null,
+        ResultPath = "$.crawl_result",
         Retry = [
           {
             ErrorEquals = ["States.TaskFailed"],
@@ -385,10 +447,66 @@ locals {
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
-            Next = "CheckClusterDestroy"
+            ResultPath = "$.error_info",
+            Next = "NotifyCrawlWpapiNonHiddenFailure"
+          }
+        ],
+        Next = "NotifyCrawlWpapiNonHiddenSuccess"
+      },
+
+      NotifyCrawlWpapiNonHiddenSuccess = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            stage_name = "CrawlWpapiNonHidden",
+            status = "SUCCESS",
+            details = {
+              dataset_type = "nh",
+              workflow = "wordpress",
+              message = "WordPress API non-hidden content crawl completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 2,
+            MaxAttempts     = 2,
+            BackoffRate     = 1.5
           }
         ],
         Next = "CheckCrawlSitemapHidden"
+      },
+
+      NotifyCrawlWpapiNonHiddenFailure = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            stage_name = "CrawlWpapiNonHidden",
+            status = "FAILED",
+            "error.$" = "$.error_info.Error",
+            details = {
+              dataset_type = "nh",
+              workflow = "wordpress",
+              message = "WordPress API non-hidden content crawl failed"
+            }
+          }
+        },
+        ResultPath = null,
+        Retry = [
+          {
+            ErrorEquals = ["States.TaskFailed"],
+            IntervalSeconds = 2,
+            MaxAttempts     = 2,
+            BackoffRate     = 1.5
+          }
+        ],
+        Next = "CheckClusterDestroy"
       },
 
       CheckCrawlSitemapHidden = {
