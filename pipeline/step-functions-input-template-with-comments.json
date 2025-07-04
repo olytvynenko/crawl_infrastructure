@@ -1,0 +1,18 @@
+{
+  "_comment": "This template shows all available stages that can be controlled in the Step Functions pipeline",
+  "_usage": "Set stage values to true to execute them, or false to skip them. If a stage is not specified, it defaults to being executed.",
+  "stages": {
+    "crawler_arm_build": false,           // Build ARM-based crawler Docker image
+    "cluster_create": false,              // Create EKS cluster infrastructure
+    "crawl_wpapi_hidden": false,          // Crawl WordPress API for hidden content (dataset_type: h)
+    "crawl_wpapi_non_hidden": false,      // Crawl WordPress API for non-hidden content (dataset_type: nh)
+    "crawl_sitemap_hidden": false,        // Crawl sitemap URLs for hidden content (dataset_type: h)
+    "crawl_sitemap_non_hidden": false,    // Crawl sitemap URLs for non-hidden content (dataset_type: nh)
+    "delta_upsert": false,                // Perform Delta Lake upsert for WordPress API data
+    "generate_sitemap_seeds": false,      // Generate seed files from sitemaps for URL crawling
+    "crawl_urls_hidden": false,           // Crawl individual URLs from sitemaps (hidden content)
+    "crawl_urls_non_hidden": false,       // Crawl individual URLs from sitemaps (non-hidden content)
+    "sitemaps_delta_upsert": false,       // Perform Delta Lake upsert for sitemap crawl data
+    "cluster_destroy": false              // Destroy EKS cluster infrastructure
+  }
+}

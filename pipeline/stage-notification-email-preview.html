@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Notification Preview</title>
+</head>
+<body style="background-color: #f4f4f4; padding: 20px;">
+    <h2 style="text-align: center; color: #333;">Success Email Preview</h2>
+    
+    <!-- Success Email -->
+    <div style="max-width: 600px; margin: 0 auto 40px; background-color: #ffffff; padding: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <div style="background-color: #d4edda; border-bottom: 3px solid #c3e6cb; padding: 20px; text-align: center;">
+            <h1 style="margin: 0; color: #28a745; font-size: 24px;">
+                ✅ Pipeline Stage Completed Successfully
+            </h1>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 30px;">
+            <h2 style="color: #333; margin-top: 0; margin-bottom: 20px; font-size: 20px;">
+                Crawler ARM Docker Image Build
+            </h2>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Stage Name:</strong></td>
+                        <td style="padding: 5px 0;">CrawlerArmBuild</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Status:</strong></td>
+                        <td style="padding: 5px 0; color: #28a745; font-weight: bold;">SUCCESS</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Timestamp:</strong></td>
+                        <td style="padding: 5px 0;">2025-07-04 15:30:45 UTC</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h3 style="color: #333; margin-bottom: 10px;">Execution Details:</h3>
+                <ul style="list-style-type: none; padding-left: 0;">
+                    <li><strong>Project Name:</strong> crawler-arm-build</li>
+                    <li><strong>Message:</strong> Crawler ARM build completed successfully</li>
+                </ul>
+            </div>
+            
+            <!-- Action Links -->
+            <div style="margin-top: 30px; padding: 20px; background-color: #e9ecef; border-radius: 5px; text-align: center;">
+                <p style="margin: 0 0 15px 0; color: #666;">
+                    For more information, please check the AWS Step Functions console.
+                </p>
+                <a href="https://console.aws.amazon.com/states/home" 
+                   style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px;">
+                    View in AWS Console
+                </a>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #dee2e6;">
+            <p style="margin: 0; color: #666; font-size: 12px;">
+                This is an automated notification from the Crawl Infrastructure Pipeline.<br>
+                Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+
+    <h2 style="text-align: center; color: #333;">Failure Email Preview</h2>
+    
+    <!-- Failure Email -->
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <div style="background-color: #f8d7da; border-bottom: 3px solid #f5c6cb; padding: 20px; text-align: center;">
+            <h1 style="margin: 0; color: #dc3545; font-size: 24px;">
+                ❌ Pipeline Stage Failed
+            </h1>
+        </div>
+        
+        <!-- Content -->
+        <div style="padding: 30px;">
+            <h2 style="color: #333; margin-top: 0; margin-bottom: 20px; font-size: 20px;">
+                WordPress API Crawl (Hidden Content)
+            </h2>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Stage Name:</strong></td>
+                        <td style="padding: 5px 0;">CrawlWpapiHidden</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Status:</strong></td>
+                        <td style="padding: 5px 0; color: #dc3545; font-weight: bold;">FAILED</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Timestamp:</strong></td>
+                        <td style="padding: 5px 0;">2025-07-04 15:35:12 UTC</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h3 style="color: #333; margin-bottom: 10px;">Execution Details:</h3>
+                <ul style="list-style-type: none; padding-left: 0;">
+                    <li><strong>Dataset Type:</strong> h</li>
+                    <li><strong>Workflow:</strong> wordpress</li>
+                    <li><strong>Execution Time:</strong> 245 seconds</li>
+                </ul>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px;">
+                <h3 style="color: #721c24; margin-top: 0;">Error Details:</h3>
+                <p style="color: #721c24; margin: 0; white-space: pre-wrap;">CodeBuild project crawl-wpapi-hidden failed with status: FAILED
+Build logs indicate insufficient memory allocation for crawling tasks.
+Consider increasing the compute type or reducing batch size.</p>
+            </div>
+            
+            <!-- Action Links -->
+            <div style="margin-top: 30px; padding: 20px; background-color: #e9ecef; border-radius: 5px; text-align: center;">
+                <p style="margin: 0 0 15px 0; color: #666;">
+                    For more information, please check the AWS Step Functions console.
+                </p>
+                <a href="https://console.aws.amazon.com/states/home" 
+                   style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px;">
+                    View in AWS Console
+                </a>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #dee2e6;">
+            <p style="margin: 0; color: #666; font-size: 12px;">
+                This is an automated notification from the Crawl Infrastructure Pipeline.<br>
+                Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

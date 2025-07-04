@@ -1,0 +1,16 @@
+{
+  "stages": {
+    "crawler_arm_build": false,
+    "cluster_create": false,
+    "crawl_wpapi_hidden": false,
+    "crawl_wpapi_non_hidden": false,
+    "crawl_sitemap_hidden": false,
+    "crawl_sitemap_non_hidden": false,
+    "delta_upsert": false,
+    "generate_sitemap_seeds": false,
+    "crawl_urls_hidden": false,
+    "crawl_urls_non_hidden": false,
+    "sitemaps_delta_upsert": false,
+    "cluster_destroy": false
+  }
+}

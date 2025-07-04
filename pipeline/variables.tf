@@ -122,26 +122,6 @@ variable "tag_keys" {
   default = ["eks:cluster-name", "karpenter.sh/discovery"]     # add or override in *.tfvars as needed
 }
 
-###############################################################################
-#  Crawler Credentials (to be stored in Parameter Store)
-###############################################################################
-variable "crawler_aws_access_key_id" {
-  description = "AWS Access Key ID for crawler (stored in Parameter Store)"
-  type        = string
-  sensitive   = true
-}
-
-variable "crawler_aws_secret_access_key" {
-  description = "AWS Secret Access Key for crawler (stored in Parameter Store)"
-  type        = string
-  sensitive   = true
-}
-
-variable "crawler_ip_abuse_check_key" {
-  description = "IP Abuse Check API Key for crawler (stored in Parameter Store)"
-  type        = string
-  sensitive   = true
-}
 
 
 

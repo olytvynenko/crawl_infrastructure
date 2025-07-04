@@ -32,6 +32,153 @@ except Exception as e:
 # Get admin emails from environment variable
 admins = os.getenv("ADMIN_EMAILS", "").split(",")
 
+# Stage descriptions for human-readable names
+STAGE_DESCRIPTIONS = {
+    "CrawlerArmBuild": "Crawler ARM Docker Image Build",
+    "ClusterCreate": "EKS Cluster Infrastructure Creation",
+    "CrawlWpapiHidden": "WordPress API Crawl (Hidden Content)",
+    "CrawlWpapiNonHidden": "WordPress API Crawl (Non-Hidden Content)",
+    "CrawlSitemapHidden": "Sitemap URL Crawl (Hidden Content)",
+    "CrawlSitemapNonHidden": "Sitemap URL Crawl (Non-Hidden Content)",
+    "WpapiDeltaUpsert": "WordPress API Data Delta Lake Update",
+    "GenerateSitemapSeeds": "Sitemap Seed File Generation",
+    "CrawlUrlsHidden": "Individual URL Crawl (Hidden Content)",
+    "CrawlUrlsNonHidden": "Individual URL Crawl (Non-Hidden Content)",
+    "SitemapsDeltaUpsert": "Sitemap Data Delta Lake Update",
+    "ClusterDestroy": "EKS Cluster Infrastructure Cleanup",
+    "VerifyResourceTermination": "Resource Termination Verification"
+}
+
+
+def generate_html_content(
+    stage_name: str,
+    status: str,
+    details: Dict[str, Any] = None,
+    error_message: str = None
+) -> str:
+    """
+    Generate HTML content for the email notification.
+    
+    Args:
+        stage_name: Name of the stage that completed
+        status: Either "SUCCESS" or "FAILED"
+        details: Additional details about the stage execution
+        error_message: Error message if the stage failed
+    
+    Returns:
+        HTML content string
+    """
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    human_readable_stage = STAGE_DESCRIPTIONS.get(stage_name, stage_name)
+    
+    # Define colors and icons based on status
+    if status == "SUCCESS":
+        status_color = "#28a745"
+        status_icon = "✅"
+        status_text = "Completed Successfully"
+        header_bg = "#d4edda"
+        header_border = "#c3e6cb"
+    else:
+        status_color = "#dc3545"
+        status_icon = "❌"
+        status_text = "Failed"
+        header_bg = "#f8d7da"
+        header_border = "#f5c6cb"
+    
+    # Build details HTML
+    details_html = ""
+    if details:
+        details_items = []
+        for key, value in details.items():
+            formatted_key = key.replace("_", " ").title()
+            details_items.append(f"<li><strong>{formatted_key}:</strong> {value}</li>")
+        details_html = f"""
+        <div style="margin-top: 20px;">
+            <h3 style="color: #333; margin-bottom: 10px;">Execution Details:</h3>
+            <ul style="list-style-type: none; padding-left: 0;">
+                {''.join(details_items)}
+            </ul>
+        </div>
+        """
+    
+    # Build error HTML if applicable
+    error_html = ""
+    if error_message:
+        error_html = f"""
+        <div style="margin-top: 20px; padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px;">
+            <h3 style="color: #721c24; margin-top: 0;">Error Details:</h3>
+            <p style="color: #721c24; margin: 0; white-space: pre-wrap;">{error_message}</p>
+        </div>
+        """
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 0;">
+            <!-- Header -->
+            <div style="background-color: {header_bg}; border-bottom: 3px solid {header_border}; padding: 20px; text-align: center;">
+                <h1 style="margin: 0; color: {status_color}; font-size: 24px;">
+                    {status_icon} Pipeline Stage {status_text}
+                </h1>
+            </div>
+            
+            <!-- Content -->
+            <div style="padding: 30px;">
+                <h2 style="color: #333; margin-top: 0; margin-bottom: 20px; font-size: 20px;">
+                    {human_readable_stage}
+                </h2>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 5px 0;"><strong>Stage Name:</strong></td>
+                            <td style="padding: 5px 0;">{stage_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px 0;"><strong>Status:</strong></td>
+                            <td style="padding: 5px 0; color: {status_color}; font-weight: bold;">{status}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px 0;"><strong>Timestamp:</strong></td>
+                            <td style="padding: 5px 0;">{timestamp}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                {details_html}
+                {error_html}
+                
+                <!-- Action Links -->
+                <div style="margin-top: 30px; padding: 20px; background-color: #e9ecef; border-radius: 5px; text-align: center;">
+                    <p style="margin: 0 0 15px 0; color: #666;">
+                        For more information, please check the AWS Step Functions console.
+                    </p>
+                    <a href="https://console.aws.amazon.com/states/home" 
+                       style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px;">
+                        View in AWS Console
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #dee2e6;">
+                <p style="margin: 0; color: #666; font-size: 12px;">
+                    This is an automated notification from the Crawl Infrastructure Pipeline.<br>
+                    Please do not reply to this email.
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
 
 def send_notification(
     stage_name: str,
@@ -57,35 +204,28 @@ def send_notification(
         return
     
     # Prepare email content
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    human_readable_stage = STAGE_DESCRIPTIONS.get(stage_name, stage_name)
     
+    # Generate subject
     if status == "SUCCESS":
-        subject = f"[SUCCESS] Pipeline Stage: {stage_name}"
-        body = f"""
-Pipeline Stage Completed Successfully
-
-Stage: {stage_name}
-Status: SUCCESS
-Time: {timestamp}Z
-
-Details:
-{json.dumps(details, indent=2) if details else 'No additional details'}
-
-This is an automated notification from the crawl pipeline.
-"""
+        subject = f"✅ Pipeline Success: {human_readable_stage}"
     else:
-        subject = f"[FAILED] Pipeline Stage: {stage_name}"
-        body = f"""
-Pipeline Stage Failed
+        subject = f"❌ Pipeline Failed: {human_readable_stage}"
+    
+    # Generate HTML content
+    html_body = generate_html_content(stage_name, status, details, error_message)
+    
+    # Generate text fallback
+    text_body = f"""
+Pipeline Stage {status}
 
-Stage: {stage_name}
-Status: FAILED
-Time: {timestamp}Z
+Stage: {human_readable_stage} ({stage_name})
+Status: {status}
+Time: {timestamp}
 
-Error: {error_message or 'No error message provided'}
-
-Details:
-{json.dumps(details, indent=2) if details else 'No additional details'}
+{'Error: ' + error_message if error_message else ''}
+{'Details: ' + json.dumps(details, indent=2) if details else ''}
 
 Please check the AWS Step Functions console for more information.
 
@@ -99,7 +239,10 @@ This is an automated notification from the crawl pipeline.
             Destination={"ToAddresses": [email.strip() for email in admins if email.strip()]},
             Message={
                 "Subject": {"Data": subject},
-                "Body": {"Text": {"Data": body}}
+                "Body": {
+                    "Text": {"Data": text_body},
+                    "Html": {"Data": html_body}
+                }
             }
         )
         logger.info(f"Notification sent for stage {stage_name} with status {status}")

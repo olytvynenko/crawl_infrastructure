@@ -270,6 +270,24 @@ locals {
             Next = "HandleFailure"
           }
         ],
+        Next = "NotifyCrawlerArmBuildComplete"
+      },
+
+      NotifyCrawlerArmBuildComplete = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "CrawlerArmBuild",
+            "status" = "SUCCESS",
+            "details" = {
+              "project_name" = var.crawler_arm_build_project,
+              "message" = "Crawler ARM build completed successfully"
+            }
+          }
+        },
+        ResultPath = null,
         Next = "CheckClusterCreate"
       },
 

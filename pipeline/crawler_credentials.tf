@@ -1,39 +1,18 @@
 ###############################################################################
-# Crawler Credentials in Parameter Store
+# Crawler Credentials from Parameter Store
 ###############################################################################
 
-# Store crawler AWS credentials securely
-resource "aws_ssm_parameter" "crawler_aws_access_key_id" {
-  name        = "/crawl/credentials/aws_access_key_id"
-  description = "AWS Access Key ID for crawler"
-  type        = "SecureString"
-  value       = var.crawler_aws_access_key_id
-  
-  tags = {
-    Purpose = "Crawler authentication"
-  }
+# Read existing crawler AWS credentials from Parameter Store
+data "aws_ssm_parameter" "crawler_aws_access_key_id" {
+  name = "/crawl/credentials/aws_access_key_id"
 }
 
-resource "aws_ssm_parameter" "crawler_aws_secret_access_key" {
-  name        = "/crawl/credentials/aws_secret_access_key"
-  description = "AWS Secret Access Key for crawler"
-  type        = "SecureString"
-  value       = var.crawler_aws_secret_access_key
-  
-  tags = {
-    Purpose = "Crawler authentication"
-  }
+data "aws_ssm_parameter" "crawler_aws_secret_access_key" {
+  name = "/crawl/credentials/aws_secret_access_key"
 }
 
-resource "aws_ssm_parameter" "crawler_ip_abuse_check_key" {
-  name        = "/crawl/credentials/ip_abuse_check_key"
-  description = "IP Abuse Check API Key for crawler"
-  type        = "SecureString"
-  value       = var.crawler_ip_abuse_check_key
-  
-  tags = {
-    Purpose = "Crawler IP abuse checking"
-  }
+data "aws_ssm_parameter" "crawler_ip_abuse_check_key" {
+  name = "/crawl/credentials/ip_abuse_check_key"
 }
 
 ###############################################################################
@@ -53,9 +32,9 @@ resource "aws_iam_policy" "codebuild_read_crawler_credentials" {
           "ssm:GetParameters"
         ]
         Resource = [
-          aws_ssm_parameter.crawler_aws_access_key_id.arn,
-          aws_ssm_parameter.crawler_aws_secret_access_key.arn,
-          aws_ssm_parameter.crawler_ip_abuse_check_key.arn
+          data.aws_ssm_parameter.crawler_aws_access_key_id.arn,
+          data.aws_ssm_parameter.crawler_aws_secret_access_key.arn,
+          data.aws_ssm_parameter.crawler_ip_abuse_check_key.arn
         ]
       }
     ]
