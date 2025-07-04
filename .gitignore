@@ -229,4 +229,4 @@ terraform.rc
 nv/
 oregon/
 ohio/
-nc/
+nc/pipeline/kube-jobs/

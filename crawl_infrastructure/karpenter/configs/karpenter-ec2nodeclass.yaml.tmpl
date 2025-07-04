@@ -18,14 +18,15 @@ spec:
 #  amiSelectorTerms:
 #      - id: ami-04d00324ebf262399
 #      - id: ami-03513159c48355642
-#  blockDeviceMappings:
-#  - deviceName: /dev/sda1
-#    rootVolume: true
-#    ebs:
-#      volumeSize: 20Gi
-#      volumeType: gp3
-#      encrypted: false
-#      deleteOnTermination: true
+  blockDeviceMappings:
+  - deviceName: /dev/sda1
+    rootVolume: true
+    ebs:
+      volumeSize: 30Gi
+      volumeType: gp3
+      encrypted: true
+      kmsKeyID: ${kms_key_id}
+      deleteOnTermination: true
   tags:
     Name: ${cluster_name}-node
     created-by: "karpneter"

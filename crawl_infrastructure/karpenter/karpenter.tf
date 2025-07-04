@@ -108,6 +108,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
   yaml_body = templatefile("${path.module}/configs/karpenter-ec2nodeclass.yaml.tmpl", {
     cluster_name = var.cluster_name
     role_name    = var.iam_role_name
+    kms_key_id   = var.kms_key_id
   })
   depends_on = [
     helm_release.karpenter
