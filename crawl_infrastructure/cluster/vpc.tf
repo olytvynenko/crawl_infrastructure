@@ -84,30 +84,4 @@ resource "null_resource" "cleanup_orphaned_instances" {
 }
 
 
-# Make sure VPC endpoints depend on the cleanup resource
-resource "aws_vpc_endpoint" "s3" {
-  vpc_id            = module.vpc.vpc_id
-  service_name      = "com.amazonaws.${var.region}.s3"
-  vpc_endpoint_type = "Gateway"
-  route_table_ids   = module.vpc.public_route_table_ids
-  policy            = <<POLICY
-{
-  "Version": "2008-10-17",
-  "Statement": [
-    {
-      "Action": "*",
-      "Effect": "Allow",
-      "Resource": "*",
-      "Principal": "*"
-    }
-  ]
-}
-POLICY
-
-}
-
-resource "aws_vpc_endpoint" "ecr" {
-  vpc_id            = module.vpc.vpc_id
-  service_name      = "com.amazonaws.${var.region}.ecr.dkr"
-  vpc_endpoint_type = "Interface"
-}
+# VPC endpoints are now defined in vpc_endpoints.tf with secure policies
