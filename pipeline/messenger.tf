@@ -97,7 +97,8 @@ resource "aws_iam_role_policy" "lambda_policy" {
         Action = ["ssm:GetParameter"],
         Resource = [
           "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/admins",
-          "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/admin"
+          "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/admin",
+          "arn:aws:ssm:${var.base_aws_region}:${data.aws_caller_identity.this.account_id}:parameter/email/sender"
         ]
       },
       # send e-mails via SES -------------------------------------------------

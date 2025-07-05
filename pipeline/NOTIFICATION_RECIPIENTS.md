@@ -2,10 +2,11 @@
 
 ## Overview
 
-The pipeline uses two SSM parameters for email configuration:
+The pipeline uses three SSM parameters for email configuration:
 
-1. **`/email/admin`** (singular) - The primary administrator email
-2. **`/email/admins`** (plural) - Comma-separated list of all administrator emails
+1. **`/email/sender`** - The sender email address for all notifications
+2. **`/email/admin`** - The primary administrator email (recipient for critical notifications)
+3. **`/email/admins`** - Comma-separated list of all administrator emails (recipients for general notifications)
 
 ## Critical Infrastructure Notifications (Admin Only)
 
@@ -43,6 +44,11 @@ The SNS topic `resources-deletion-missed` automatically subscribes all emails fr
 
 ## Updating Email Addresses
 
+### To change the sender email:
+```bash
+aws ssm put-parameter --name /email/sender --value "noreply@example.com" --overwrite
+```
+
 ### To change the admin email:
 ```bash
 aws ssm put-parameter --name /email/admin --value "new-admin@example.com" --overwrite
@@ -60,10 +66,13 @@ terraform apply  # Updates SNS subscriptions and Lambda environment variables
 
 ## Notes
 
+- When you change `/email/sender`, all notifications will immediately use the new sender address
+  - Ensure the sender email is verified in AWS SES
 - When you change `/email/admin`, critical notifications will immediately go to the new address
 - When you change `/email/admins`, Terraform will:
   - Remove SNS subscriptions for removed emails
   - Add SNS subscriptions for new emails
   - New subscribers must confirm via email link
 - Lambda functions read SSM parameters at runtime, so email changes take effect immediately
-- The admin email (`/email/admin`) serves as both sender and recipient for critical notifications
+- The sender email (`/email/sender`) is used as the FROM address for all notifications
+- The admin email (`/email/admin`) is the recipient for critical infrastructure notifications

@@ -29,10 +29,10 @@ AUTO_START_PIPELINE = os.getenv("AUTO_START_PIPELINE", "false").lower() == "true
 
 # Fetch sender email from Parameter Store
 try:
-    response = ssm.get_parameter(Name="/email/admin")
+    response = ssm.get_parameter(Name="/email/sender")
     SENDER = response["Parameter"]["Value"]
 except Exception as e:
-    logger.error(f"Failed to fetch admin email from Parameter Store: {e}")
+    logger.error(f"Failed to fetch sender email from Parameter Store: {e}")
     SENDER = None
 
 

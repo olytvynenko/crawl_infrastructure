@@ -29,6 +29,7 @@ DELETION_LAMBDA_ARN = os.environ.get("DELETION_LAMBDA_ARN")
 CHECK_LAMBDA_ARN = os.environ.get("CHECK_LAMBDA_ARN")
 DELETION_DELAY_SECONDS = int(os.environ.get("DELETION_DELAY_SECONDS", "259200"))  # 72 hours default
 CHECK_DELAY_SECONDS = int(os.environ.get("CHECK_DELAY_SECONDS", "28800"))  # 8 hours default
+SENDER_EMAIL_PARAM = "/email/sender"
 ADMIN_EMAIL_PARAM = "/email/admin"
 
 
@@ -61,6 +62,16 @@ def get_ssm_parameters() -> Dict[str, str]:
     except Exception as e:
         logger.error(f"Failed to fetch SSM parameters: {e}")
         raise
+
+
+def get_sender_email() -> str:
+    """Get sender email from Parameter Store."""
+    try:
+        response = ssm.get_parameter(Name=SENDER_EMAIL_PARAM)
+        return response["Parameter"]["Value"]
+    except Exception as e:
+        logger.error(f"Failed to get sender email: {e}")
+        return None
 
 
 def get_admin_email() -> str:
@@ -96,9 +107,9 @@ def send_scheduled_notification(
         check_time: When the verification will occur
         execution_id: Step Functions execution ID
     """
-    sender = get_admin_email()
+    sender = get_sender_email()
     if not sender:
-        logger.warning("Cannot send notification: admin email not configured")
+        logger.warning("Cannot send notification: sender email not configured")
         return
         
     recipients = get_recipient_emails()

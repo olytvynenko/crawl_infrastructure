@@ -22,26 +22,36 @@ ssm = boto3.client("ssm")
 ses = boto3.client("ses")
 
 # Global variables for caching
-_ADMIN_EMAIL_CACHE = None
+_SENDER_EMAIL_CACHE = None
 _CACHE_TIME = None
 CACHE_DURATION = 300  # Cache for 5 minutes
 
-def get_admin_email():
-    """Get admin email from Parameter Store with caching."""
-    global _ADMIN_EMAIL_CACHE, _CACHE_TIME
+def get_sender_email():
+    """Get sender email from Parameter Store with caching."""
+    global _SENDER_EMAIL_CACHE, _CACHE_TIME
     
     current_time = datetime.utcnow()
     
     # Return cached value if still valid
-    if _ADMIN_EMAIL_CACHE and _CACHE_TIME and (current_time - _CACHE_TIME).seconds < CACHE_DURATION:
-        return _ADMIN_EMAIL_CACHE
+    if _SENDER_EMAIL_CACHE and _CACHE_TIME and (current_time - _CACHE_TIME).seconds < CACHE_DURATION:
+        return _SENDER_EMAIL_CACHE
     
     try:
-        response = ssm.get_parameter(Name="/email/admin")
-        _ADMIN_EMAIL_CACHE = response["Parameter"]["Value"]
+        response = ssm.get_parameter(Name="/email/sender")
+        _SENDER_EMAIL_CACHE = response["Parameter"]["Value"]
         _CACHE_TIME = current_time
-        logger.info(f"Successfully fetched admin email from Parameter Store")
-        return _ADMIN_EMAIL_CACHE
+        logger.info(f"Successfully fetched sender email from Parameter Store")
+        return _SENDER_EMAIL_CACHE
+    except Exception as e:
+        logger.error(f"Failed to fetch sender email from Parameter Store: {e}")
+        return None
+
+
+def get_admin_email():
+    """Get admin email from Parameter Store for admin-only notifications."""
+    try:
+        response = ssm.get_parameter(Name="/email/admin")
+        return response["Parameter"]["Value"]
     except Exception as e:
         logger.error(f"Failed to fetch admin email from Parameter Store: {e}")
         return None
@@ -234,15 +244,19 @@ def send_notification(
         error_message: Error message if the stage failed
         admin_only: If True, send only to admin email from Parameter Store
     """
-    # Get sender email (admin email)
-    SENDER = get_admin_email()
+    # Get sender email
+    SENDER = get_sender_email()
     if not SENDER:
         logger.error("Cannot send email: SENDER is not configured")
         return
     
     # Determine recipients based on admin_only flag
     if admin_only:
-        recipients = [SENDER]  # Admin email is both sender and recipient
+        admin_email = get_admin_email()
+        if not admin_email:
+            logger.error("Cannot send admin-only notification: admin email not configured")
+            return
+        recipients = [admin_email]
         logger.info(f"Sending admin-only notification to: {recipients}")
     else:
         regular_admins = get_regular_admins()

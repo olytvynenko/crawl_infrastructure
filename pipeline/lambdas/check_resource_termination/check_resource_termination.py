@@ -10,13 +10,19 @@ ec2 = boto3.client("ec2")
 ssm = boto3.client("ssm")
 ses = boto3.client("ses")  # requires verified sender in SES
 
-# Fetch admin email from Parameter Store - this Lambda only sends to admin
+# Fetch email configuration from Parameter Store
 try:
-    response = ssm.get_parameter(Name="/email/admin")
-    SENDER = response["Parameter"]["Value"]
-    ADMIN_EMAIL = SENDER  # This Lambda only sends to admin email
+    # Get sender email
+    sender_response = ssm.get_parameter(Name="/email/sender")
+    SENDER = sender_response["Parameter"]["Value"]
+    logger.info(f"Successfully fetched sender email from Parameter Store")
+    
+    # Get admin email - this Lambda only sends to admin
+    admin_response = ssm.get_parameter(Name="/email/admin")
+    ADMIN_EMAIL = admin_response["Parameter"]["Value"]
+    logger.info(f"Successfully fetched admin email from Parameter Store")
 except Exception as e:
-    logger.error(f"Failed to fetch admin email from Parameter Store: {e}")
+    logger.error(f"Failed to fetch email configuration from Parameter Store: {e}")
     SENDER = None
     ADMIN_EMAIL = None
 
