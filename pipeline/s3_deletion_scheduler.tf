@@ -36,7 +36,6 @@ resource "aws_lambda_function" "schedule_s3_deletion" {
       CHECK_LAMBDA_ARN        = aws_lambda_function.check_s3_deletions.arn
       DELETION_DELAY_SECONDS  = var.s3_deletion_delay_seconds
       CHECK_DELAY_SECONDS     = var.s3_deletion_check_delay_seconds
-      REGULAR_ADMINS          = local.admin_emails_string
     }
   }
   

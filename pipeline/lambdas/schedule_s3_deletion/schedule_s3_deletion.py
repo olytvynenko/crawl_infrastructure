@@ -30,7 +30,6 @@ CHECK_LAMBDA_ARN = os.environ.get("CHECK_LAMBDA_ARN")
 DELETION_DELAY_SECONDS = int(os.environ.get("DELETION_DELAY_SECONDS", "259200"))  # 72 hours default
 CHECK_DELAY_SECONDS = int(os.environ.get("CHECK_DELAY_SECONDS", "28800"))  # 8 hours default
 ADMIN_EMAIL_PARAM = "/email/admin"
-REGULAR_ADMINS = os.environ.get("REGULAR_ADMINS", "")
 
 
 def get_ssm_parameters() -> Dict[str, str]:
@@ -75,19 +74,11 @@ def get_admin_email() -> str:
 
 
 def get_recipient_emails() -> List[str]:
-    """Get list of recipient emails for notifications."""
-    recipients = []
-    
-    # Add regular admins from environment variable
-    if REGULAR_ADMINS:
-        recipients.extend([email.strip() for email in REGULAR_ADMINS.split(",") if email.strip()])
-    
-    # Always include admin email as well
+    """Get list of recipient emails for notifications - admin only for S3 deletions."""
     admin_email = get_admin_email()
-    if admin_email and admin_email not in recipients:
-        recipients.append(admin_email)
-    
-    return recipients
+    if admin_email:
+        return [admin_email]
+    return []
 
 
 def send_scheduled_notification(
