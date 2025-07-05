@@ -239,8 +239,10 @@ def create_scheduled_rule(
     Returns:
         ARN of the created rule
     """
-    # Create a one-time schedule expression
+    # Create a one-time schedule expression (EventBridge requires UTC)
+    # Format: at(yyyy-mm-ddThh:mm:ss)
     schedule_expression = f"at({schedule_time.strftime('%Y-%m-%dT%H:%M:%S')})"
+    logger.info(f"Creating rule with schedule expression: {schedule_expression}")
     
     try:
         # Create or update the rule
@@ -314,7 +316,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "statusCode": 200,
             "body": json.dumps({
                 "message": "No folders to schedule for deletion",
-                "scheduled_deletions": 0
+                "scheduled_deletions": 0,
+                "details": {
+                    "folders_count": 0,
+                    "deletion_scheduled_for": None,
+                    "check_scheduled_for": None
+                }
             })
         }
     
@@ -329,7 +336,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "statusCode": 500,
             "body": json.dumps({
                 "message": "Failed to retrieve SSM parameters",
-                "error": str(e)
+                "error": str(e),
+                "details": {
+                    "folders_count": 0,
+                    "deletion_scheduled_for": None,
+                    "check_scheduled_for": None
+                }
             })
         }
     
@@ -352,8 +364,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     # Calculate schedule times
     now = datetime.utcnow()
-    deletion_time = now + timedelta(seconds=deletion_delay)
+    # Ensure we're scheduling at least 1 minute in the future (EventBridge requirement)
+    min_delay = max(60, deletion_delay)  # At least 60 seconds
+    deletion_time = now + timedelta(seconds=min_delay)
     check_time = deletion_time + timedelta(seconds=check_delay)
+    
+    logger.info(f"Current time: {now.isoformat()}")
+    logger.info(f"Deletion scheduled for: {deletion_time.isoformat()} ({min_delay} seconds from now)")
+    logger.info(f"Check scheduled for: {check_time.isoformat()} ({check_delay} seconds after deletion)")
     
     # Create unique rule names based on execution ID
     deletion_rule_name = f"s3-deletion-{execution_id}"
@@ -416,6 +434,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "statusCode": 500,
             "body": json.dumps({
                 "message": "Failed to schedule deletions",
-                "error": str(e)
+                "error": str(e),
+                "details": {
+                    "folders_count": len(folders) if 'folders' in locals() else 0,
+                    "deletion_scheduled_for": None,
+                    "check_scheduled_for": None
+                }
             })
         }
