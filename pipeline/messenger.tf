@@ -152,8 +152,8 @@ data "archive_file" "check_s3_deletions_zip" {
 
 resource "aws_lambda_function" "check_s3_deletions" {
   function_name = "check-s3-deletions"
-  runtime       = "python3.9"
-  handler       = "handler.main"
+  runtime       = "python3.11"
+  handler       = "check_s3_deletions.main"
 
   filename         = data.archive_file.check_s3_deletions_zip.output_path
   source_code_hash = data.archive_file.check_s3_deletions_zip.output_base64sha256
@@ -168,7 +168,7 @@ resource "aws_lambda_function" "check_s3_deletions" {
       MAX_AGE_SECONDS = 86400            # 24 h
       SNS_TOPIC_ARN   = aws_sns_topic.alert_topic.arn
       MESSENGER_PARAM = var.messenger_webhook_url == "" ? "" : aws_ssm_parameter.messenger_webhook[0].name
-
+      STAGE_NOTIFICATION_LAMBDA_ARN = aws_lambda_function.stage_notification.arn
     }
   }
 }

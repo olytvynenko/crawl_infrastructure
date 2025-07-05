@@ -82,5 +82,37 @@
     "input": {
       "stages": {}
     }
+  },
+  
+  "example_9_destroy_and_schedule_deletion": {
+    "description": "Destroy cluster and schedule S3 deletions",
+    "input": {
+      "notifications_enabled": true,
+      "stages": {
+        "crawler_arm_build": false,
+        "cluster_create": false,
+        "crawl_wpapi_hidden": false,
+        "crawl_wpapi_non_hidden": false,
+        "crawl_sitemap_hidden": false,
+        "crawl_sitemap_non_hidden": false,
+        "delta_upsert": false,
+        "generate_sitemap_seeds": false,
+        "crawl_urls_hidden": false,
+        "crawl_urls_non_hidden": false,
+        "sitemaps_delta_upsert": false,
+        "cluster_destroy": true,
+        "schedule_s3_deletion": true
+      },
+      "s3_deletion_config": {
+        "enabled": true,
+        "folders": [
+          "update/results/crawl-2024/",
+          "update/seed/temp/",
+          "scratch/"
+        ],
+        "deletion_delay_seconds": 259200,
+        "check_delay_seconds": 28800
+      }
+    }
   }
 }

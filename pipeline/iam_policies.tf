@@ -356,6 +356,7 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/eks-nodegroup.amazonaws.com/*"
     ]
   }
+
 }
 
 # Create the managed policy
@@ -363,6 +364,48 @@ resource "aws_iam_policy" "codebuild_cluster_manager" {
   name        = "CodeBuildClusterManagerPolicy"
   description = "Least-privilege policy for CodeBuild to manage EKS clusters"
   policy      = data.aws_iam_policy_document.codebuild_cluster_manager.json
+}
+
+# Separate policy for CodeCommit and CloudWatch Logs access
+data "aws_iam_policy_document" "codebuild_source_access" {
+  # CodeCommit access for source code
+  statement {
+    sid    = "CodeCommitAccess"
+    effect = "Allow"
+    actions = [
+      "codecommit:GetBranch",
+      "codecommit:GetCommit",
+      "codecommit:GetRepository",
+      "codecommit:ListBranches",
+      "codecommit:ListRepositories",
+      "codecommit:BatchGetRepositories",
+      "codecommit:GitPull"
+    ]
+    resources = [
+      "arn:aws:codecommit:us-east-1:${data.aws_caller_identity.current.account_id}:crawl-infrastructure"
+    ]
+  }
+
+  # CloudWatch Logs access for build logs
+  statement {
+    sid    = "CloudWatchLogsAccess"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:us-east-1:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/cluster-manager",
+      "arn:aws:logs:us-east-1:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/cluster-manager:*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "codebuild_source_access" {
+  name        = "CodeBuildSourceAccessPolicy"
+  description = "Policy for CodeBuild to access CodeCommit and CloudWatch Logs"
+  policy      = data.aws_iam_policy_document.codebuild_source_access.json
 }
 
 # Data source for current AWS account is defined in glue_jobs.tf

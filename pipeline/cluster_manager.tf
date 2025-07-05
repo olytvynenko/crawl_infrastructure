@@ -25,6 +25,11 @@ resource "aws_iam_role_policy_attachment" "cb_cluster_manager" {
   policy_arn = aws_iam_policy.codebuild_cluster_manager.arn
 }
 
+resource "aws_iam_role_policy_attachment" "cb_source_access" {
+  role       = aws_iam_role.cb_role.name
+  policy_arn = aws_iam_policy.codebuild_source_access.arn
+}
+
 ###############################################################################
 # CODEBUILD PROJECT
 ###############################################################################

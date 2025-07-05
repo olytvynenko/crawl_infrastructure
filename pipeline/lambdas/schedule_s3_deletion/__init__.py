@@ -1,0 +1,1 @@
+# Lambda package for scheduling S3 deletions

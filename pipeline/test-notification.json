@@ -1,0 +1,11 @@
+{
+  "stage_name": "ClusterDestroy",
+  "status": "FAILED",
+  "admin_only": true,
+  "error": "Test error message",
+  "details": {
+    "message": "EKS cluster destruction failed",
+    "action": "destroy",
+    "resource": "cluster"
+  }
+}

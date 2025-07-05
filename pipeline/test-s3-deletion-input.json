@@ -13,12 +13,14 @@
     "crawl_urls_non_hidden": false,
     "sitemaps_delta_upsert": false,
     "cluster_destroy": false,
-    "schedule_s3_deletion": false
+    "schedule_s3_deletion": true
   },
   "s3_deletion_config": {
     "enabled": true,
-    "folders": [],
-    "deletion_delay_seconds": 259200,
-    "check_delay_seconds": 28800
+    "folders": [
+      "tests/results/"
+    ],
+    "deletion_delay_seconds": 300,
+    "check_delay_seconds": 420
   }
 }

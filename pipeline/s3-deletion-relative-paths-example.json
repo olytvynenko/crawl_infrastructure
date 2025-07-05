@@ -1,0 +1,47 @@
+{
+  "_comment": "Example S3 deletion configurations using relative paths",
+  "_note": "All paths are relative to s3://{bucket}/{dataset}/ where bucket and dataset come from SSM parameters",
+  
+  "example_crawl_cleanup": {
+    "description": "Clean up crawl results and temporary files",
+    "folders": [
+      "update/results/crawl-",
+      "update/seed/temp/",
+      "scratch/",
+      "logs/crawler/"
+    ]
+  },
+  
+  "example_specific_run": {
+    "description": "Delete specific crawl run data",
+    "folders": [
+      "update/results/crawl-2024-01/",
+      "update/results/crawl-2024-02/",
+      "temp/processing/batch-123/"
+    ]
+  },
+  
+  "example_all_temp_data": {
+    "description": "Delete all temporary and scratch data",
+    "folders": [
+      "temp/",
+      "scratch/",
+      "tmp/",
+      ".tmp/"
+    ]
+  },
+  
+  "path_patterns": {
+    "exact_folder": "temp/processing/",
+    "prefix_match": "update/results/crawl-",
+    "nested_path": "data/intermediate/stage1/",
+    "root_level": "scratch/"
+  },
+  
+  "notes": [
+    "Paths should NOT start with /",
+    "Paths can end with / but it's not required",
+    "The Lambda will ensure paths end with / before deletion",
+    "Full S3 path will be: s3://{bucket}/{dataset}/{your-relative-path}"
+  ]
+}

@@ -140,6 +140,11 @@ resource "aws_iam_role_policy" "sfn_invoke_lambda" {
       },
       {
         Effect   = "Allow",
+        Action = ["lambda:InvokeFunction"],
+        Resource = aws_lambda_function.schedule_s3_deletion.arn
+      },
+      {
+        Effect   = "Allow",
         Action = ["ses:SendEmail", "ses:SendRawEmail"],
         Resource = "*"
       }
@@ -999,7 +1004,7 @@ locals {
           {
             Variable      = "$.stages.cluster_destroy",
             BooleanEquals = false,
-            Next = "VerifyResourceTermination"
+            Next = "CheckScheduleS3Deletion"
           }
         ],
         Default = "ClusterDestroy"
@@ -1019,8 +1024,8 @@ locals {
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
-            ResultPath = null,
-            Next = "VerifyResourceTermination"
+            ResultPath = "$.error",
+            Next = "CheckNotificationsForClusterDestroyFailure"
           }
         ],
         Next = "CheckNotificationsForClusterDestroy"
@@ -1051,6 +1056,143 @@ locals {
               "message" = "EKS cluster destroyed successfully",
               "action" = "destroy",
               "resource" = "cluster"
+            }
+          }
+        },
+        ResultPath = null,
+        Next = "CheckScheduleS3Deletion"
+      },
+
+      CheckNotificationsForClusterDestroyFailure = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "CheckScheduleS3Deletion"
+          }
+        ],
+        Default = "NotifyClusterDestroyFailure"
+      },
+
+      NotifyClusterDestroyFailure = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name"  = "ClusterDestroy",
+            "status"      = "FAILED",
+            "admin_only"  = true,
+            "error.$"     = "$.error.Error",
+            "details" = {
+              "message" = "EKS cluster destruction failed",
+              "action"  = "destroy",
+              "resource" = "cluster"
+            }
+          }
+        },
+        ResultPath = null,
+        Next = "CheckScheduleS3Deletion"
+      },
+
+      CheckScheduleS3Deletion = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.stages.schedule_s3_deletion",
+            BooleanEquals = false,
+            Next = "VerifyResourceTermination"
+          },
+          {
+            Variable      = "$.s3_deletion_config.enabled",
+            BooleanEquals = false,
+            Next = "VerifyResourceTermination"
+          }
+        ],
+        Default = "ScheduleS3Deletion"
+      },
+
+      ScheduleS3Deletion = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.schedule_s3_deletion.arn,
+          Payload = {
+            "folders.$"              = "$.s3_deletion_config.folders",
+            "deletion_delay_seconds.$" = "$.s3_deletion_config.deletion_delay_seconds",
+            "check_delay_seconds.$"    = "$.s3_deletion_config.check_delay_seconds",
+            "execution_id.$"           = "$$.Execution.Name"
+          }
+        },
+        ResultPath = "$.s3_deletion_result",
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"],
+            ResultPath = "$.s3_deletion_error",
+            Next = "CheckNotificationsForS3DeletionFailure"
+          }
+        ],
+        Next = "CheckNotificationsForS3DeletionSuccess"
+      },
+
+      CheckNotificationsForS3DeletionSuccess = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "VerifyResourceTermination"
+          }
+        ],
+        Default = "NotifyS3DeletionScheduled"
+      },
+
+      NotifyS3DeletionScheduled = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name" = "ScheduleS3Deletion",
+            "status"     = "SUCCESS",
+            "admin_only" = true,
+            "details" = {
+              "message"               = "S3 folder deletions scheduled successfully",
+              "folders_count.$"       = "$.s3_deletion_result.Payload.body.details.folders_count",
+              "deletion_scheduled_for.$" = "$.s3_deletion_result.Payload.body.details.deletion_scheduled_for",
+              "check_scheduled_for.$"    = "$.s3_deletion_result.Payload.body.details.check_scheduled_for"
+            }
+          }
+        },
+        ResultPath = null,
+        Next = "VerifyResourceTermination"
+      },
+
+      CheckNotificationsForS3DeletionFailure = {
+        Type = "Choice",
+        Choices = [
+          {
+            Variable      = "$.notifications_enabled",
+            BooleanEquals = false,
+            Next          = "VerifyResourceTermination"
+          }
+        ],
+        Default = "NotifyS3DeletionFailed"
+      },
+
+      NotifyS3DeletionFailed = {
+        Type     = "Task",
+        Resource = "arn:aws:states:::lambda:invoke",
+        Parameters = {
+          FunctionName = aws_lambda_function.stage_notification.arn,
+          Payload = {
+            "stage_name"  = "ScheduleS3Deletion",
+            "status"      = "FAILED",
+            "admin_only"  = true,
+            "error.$"     = "$.s3_deletion_error.Error",
+            "details" = {
+              "message" = "Failed to schedule S3 folder deletions"
             }
           }
         },

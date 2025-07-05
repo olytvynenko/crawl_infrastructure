@@ -1,0 +1,53 @@
+{
+  "_comment": "Examples of different time values for S3 deletion scheduling",
+  
+  "immediate_test": {
+    "description": "Delete after 5 minutes, check after 2 minutes (for testing)",
+    "deletion_delay_seconds": 300,
+    "check_delay_seconds": 120
+  },
+  
+  "one_hour": {
+    "description": "Delete after 1 hour, check after 30 minutes",
+    "deletion_delay_seconds": 3600,
+    "check_delay_seconds": 1800
+  },
+  
+  "one_day": {
+    "description": "Delete after 24 hours, check after 1 hour",
+    "deletion_delay_seconds": 86400,
+    "check_delay_seconds": 3600
+  },
+  
+  "default_three_days": {
+    "description": "Delete after 72 hours (3 days), check after 8 hours",
+    "deletion_delay_seconds": 259200,
+    "check_delay_seconds": 28800
+  },
+  
+  "one_week": {
+    "description": "Delete after 7 days, check after 12 hours",
+    "deletion_delay_seconds": 604800,
+    "check_delay_seconds": 43200
+  },
+  
+  "one_month": {
+    "description": "Delete after 30 days, check after 24 hours",
+    "deletion_delay_seconds": 2592000,
+    "check_delay_seconds": 86400
+  },
+  
+  "time_conversion_reference": {
+    "1_minute": 60,
+    "5_minutes": 300,
+    "30_minutes": 1800,
+    "1_hour": 3600,
+    "6_hours": 21600,
+    "12_hours": 43200,
+    "24_hours": 86400,
+    "3_days": 259200,
+    "7_days": 604800,
+    "14_days": 1209600,
+    "30_days": 2592000
+  }
+}

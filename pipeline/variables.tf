@@ -122,6 +122,25 @@ variable "tag_keys" {
   default = ["eks:cluster-name", "karpenter.sh/discovery"]     # add or override in *.tfvars as needed
 }
 
+# S3 deletion scheduling variables
+variable "s3_folders_to_delete" {
+  type = list(string)
+  description = "List of S3 folder paths relative to s3://{bucket}/{dataset}/ to delete after cluster destruction"
+  default = []
+}
+
+variable "s3_deletion_delay_seconds" {
+  type = number
+  description = "Seconds to wait before deleting S3 folders after cluster destruction"
+  default = 259200  # 72 hours in seconds
+}
+
+variable "s3_deletion_check_delay_seconds" {
+  type = number
+  description = "Seconds to wait after scheduled deletion before checking if folders were deleted"
+  default = 28800  # 8 hours in seconds
+}
+
 
 
 
