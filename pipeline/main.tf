@@ -1159,9 +1159,9 @@ locals {
             "admin_only" = true,
             "details" = {
               "message"               = "S3 folder deletions scheduled successfully",
-              "folders_count.$"       = "$.s3_deletion_result.Payload.body.details.folders_count",
-              "deletion_scheduled_for.$" = "$.s3_deletion_result.Payload.body.details.deletion_scheduled_for",
-              "check_scheduled_for.$"    = "$.s3_deletion_result.Payload.body.details.check_scheduled_for"
+              "folders_count.$"       = "$.s3_deletion_result.Payload.details.folders_count",
+              "deletion_scheduled_for.$" = "$.s3_deletion_result.Payload.details.deletion_scheduled_for",
+              "check_scheduled_for.$"    = "$.s3_deletion_result.Payload.details.check_scheduled_for"
             }
           }
         },

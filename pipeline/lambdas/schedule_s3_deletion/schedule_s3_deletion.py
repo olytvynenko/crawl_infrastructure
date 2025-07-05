@@ -313,16 +313,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if not relative_folders:
         logger.warning("No folders specified for deletion")
         return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": "No folders to schedule for deletion",
-                "scheduled_deletions": 0,
-                "details": {
-                    "folders_count": 0,
-                    "deletion_scheduled_for": None,
-                    "check_scheduled_for": None
-                }
-            })
+            "message": "No folders to schedule for deletion",
+            "scheduled_deletions": 0,
+            "details": {
+                "folders_count": 0,
+                "deletion_scheduled_for": None,
+                "check_scheduled_for": None
+            }
         }
     
     # Get bucket and dataset from SSM
@@ -333,16 +330,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to get SSM parameters: {e}")
         return {
-            "statusCode": 500,
-            "body": json.dumps({
-                "message": "Failed to retrieve SSM parameters",
-                "error": str(e),
-                "details": {
-                    "folders_count": 0,
-                    "deletion_scheduled_for": None,
-                    "check_scheduled_for": None
-                }
-            })
+            "message": "Failed to retrieve SSM parameters",
+            "error": str(e),
+            "details": {
+                "folders_count": 0,
+                "deletion_scheduled_for": None,
+                "check_scheduled_for": None
+            }
         }
     
     # Transform relative paths to absolute paths
@@ -420,25 +414,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Send notification about scheduled deletions
         send_scheduled_notification(folders, deletion_time, check_time, execution_id)
         
+        # Return the result directly for Step Functions
         return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "message": f"Scheduled deletion of {len(folders)} folders",
-                "details": result
-            })
+            "message": f"Scheduled deletion of {len(folders)} folders",
+            "details": result
         }
         
     except Exception as e:
         logger.error(f"Error scheduling deletions: {e}")
         return {
-            "statusCode": 500,
-            "body": json.dumps({
-                "message": "Failed to schedule deletions",
-                "error": str(e),
-                "details": {
-                    "folders_count": len(folders) if 'folders' in locals() else 0,
-                    "deletion_scheduled_for": None,
-                    "check_scheduled_for": None
-                }
-            })
+            "message": "Failed to schedule deletions",
+            "error": str(e),
+            "details": {
+                "folders_count": len(folders) if 'folders' in locals() else 0,
+                "deletion_scheduled_for": None,
+                "check_scheduled_for": None
+            }
         }
