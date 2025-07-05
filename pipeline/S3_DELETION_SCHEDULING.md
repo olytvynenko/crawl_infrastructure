@@ -12,9 +12,10 @@ After cluster destruction, the pipeline can automatically schedule the deletion 
 
 ## How It Works
 
-1. **Scheduling Stage**: After `ClusterDestroy` completes, a new stage `ScheduleS3Deletion` creates EventBridge rules to:
-   - Delete specified S3 folders after a delay (default: 259200 seconds = 72 hours)
-   - Check if deletions were successful after another delay (default: 28800 seconds = 8 hours)
+1. **Scheduling Stage**: After `ClusterDestroy` completes, a new stage `ScheduleS3Deletion`:
+   - Creates EventBridge rules to schedule deletions
+   - Sends an immediate email notification listing all folders scheduled for deletion
+   - Includes deletion time and verification time in the notification
 
 2. **Deletion Execution**: When the scheduled time arrives, the `delete-s3-folders` Lambda:
    - Deletes all objects in the specified folders
@@ -25,6 +26,23 @@ After cluster destruction, the pipeline can automatically schedule the deletion 
    - Verifies that the folders no longer exist
    - Sends a notification if any folders still contain objects
    - Cleans up the EventBridge rules
+
+## Notifications
+
+The system sends three types of notifications:
+
+1. **Scheduling Notification** (immediate):
+   - Lists all folders scheduled for deletion
+   - Shows when deletion will occur
+   - Shows when verification will occur
+
+2. **Deletion Notification** (after deletion delay):
+   - Confirms which folders were deleted
+   - Reports any errors encountered
+
+3. **Verification Notification** (after check delay):
+   - Confirms if all folders were successfully deleted
+   - Lists any folders that still exist
 
 ## Configuration
 

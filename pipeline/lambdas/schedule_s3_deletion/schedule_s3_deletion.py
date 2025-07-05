@@ -22,12 +22,15 @@ events = boto3.client("events")
 lambda_client = boto3.client("lambda")
 iam = boto3.client("iam")
 ssm = boto3.client("ssm")
+ses = boto3.client("ses")
 
 # Get configuration from environment variables
 DELETION_LAMBDA_ARN = os.environ.get("DELETION_LAMBDA_ARN")
 CHECK_LAMBDA_ARN = os.environ.get("CHECK_LAMBDA_ARN")
 DELETION_DELAY_SECONDS = int(os.environ.get("DELETION_DELAY_SECONDS", "259200"))  # 72 hours default
 CHECK_DELAY_SECONDS = int(os.environ.get("CHECK_DELAY_SECONDS", "28800"))  # 8 hours default
+ADMIN_EMAIL_PARAM = "/email/admin"
+REGULAR_ADMINS = os.environ.get("REGULAR_ADMINS", "")
 
 
 def get_ssm_parameters() -> Dict[str, str]:
@@ -59,6 +62,161 @@ def get_ssm_parameters() -> Dict[str, str]:
     except Exception as e:
         logger.error(f"Failed to fetch SSM parameters: {e}")
         raise
+
+
+def get_admin_email() -> str:
+    """Get admin email from Parameter Store."""
+    try:
+        response = ssm.get_parameter(Name=ADMIN_EMAIL_PARAM)
+        return response["Parameter"]["Value"]
+    except Exception as e:
+        logger.error(f"Failed to get admin email: {e}")
+        return None
+
+
+def get_recipient_emails() -> List[str]:
+    """Get list of recipient emails for notifications."""
+    recipients = []
+    
+    # Add regular admins from environment variable
+    if REGULAR_ADMINS:
+        recipients.extend([email.strip() for email in REGULAR_ADMINS.split(",") if email.strip()])
+    
+    # Always include admin email as well
+    admin_email = get_admin_email()
+    if admin_email and admin_email not in recipients:
+        recipients.append(admin_email)
+    
+    return recipients
+
+
+def send_scheduled_notification(
+    folders: List[Dict[str, str]], 
+    deletion_time: datetime, 
+    check_time: datetime,
+    execution_id: str
+) -> None:
+    """
+    Send notification email about scheduled S3 deletions.
+    
+    Args:
+        folders: List of folders scheduled for deletion
+        deletion_time: When the deletion will occur
+        check_time: When the verification will occur
+        execution_id: Step Functions execution ID
+    """
+    sender = get_admin_email()
+    if not sender:
+        logger.warning("Cannot send notification: admin email not configured")
+        return
+        
+    recipients = get_recipient_emails()
+    if not recipients:
+        logger.warning("No recipients configured for notifications")
+        return
+    
+    # Generate email content
+    subject = f"📅 S3 Deletion Scheduled for {len(folders)} folders"
+    
+    # Build folder list HTML
+    folder_list_html = ""
+    for folder in folders:
+        s3_path = f"s3://{folder['bucket']}/{folder['prefix']}"
+        folder_list_html += f"<li><code>{s3_path}</code></li>"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #cce5ff; border: 1px solid #b8daff; padding: 20px; border-radius: 5px; margin-bottom: 20px; }}
+            .details {{ background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            .folder-list {{ background-color: #fff; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; }}
+            code {{ background-color: #f1f3f4; padding: 2px 5px; border-radius: 3px; font-family: monospace; }}
+            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #6c757d; font-size: 0.9em; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h2>📅 S3 Deletion Scheduled</h2>
+                <p>{len(folders)} folder(s) have been scheduled for deletion.</p>
+            </div>
+            
+            <div class="details">
+                <h3>Schedule Details:</h3>
+                <ul>
+                    <li><strong>Deletion Time:</strong> {deletion_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((deletion_time - datetime.utcnow()).total_seconds() / 3600)} hours from now)</li>
+                    <li><strong>Verification Time:</strong> {check_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((check_time - deletion_time).total_seconds() / 3600)} hours after deletion)</li>
+                    <li><strong>Execution ID:</strong> {execution_id}</li>
+                </ul>
+            </div>
+            
+            <div class="folder-list">
+                <h3>Folders Scheduled for Deletion:</h3>
+                <ul>
+                    {folder_list_html}
+                </ul>
+            </div>
+            
+            <div class="footer">
+                <p>
+                    <strong>Important:</strong> These folders and all their contents will be permanently deleted at the scheduled time. 
+                    The deletion cannot be cancelled once scheduled.
+                </p>
+                <p>
+                    You will receive another notification when the deletion is completed, and a final notification 
+                    confirming whether the deletion was successful.
+                </p>
+                <p>
+                    <em>This is an automated notification from the Crawl Infrastructure Pipeline.</em>
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    text_body = f"""
+S3 DELETION SCHEDULED
+
+{len(folders)} folder(s) have been scheduled for deletion.
+
+Schedule Details:
+- Deletion Time: {deletion_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((deletion_time - datetime.utcnow()).total_seconds() / 3600)} hours from now)
+- Verification Time: {check_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((check_time - deletion_time).total_seconds() / 3600)} hours after deletion)
+- Execution ID: {execution_id}
+
+Folders Scheduled for Deletion:
+{chr(10).join([f"- s3://{f['bucket']}/{f['prefix']}" for f in folders])}
+
+IMPORTANT: These folders and all their contents will be permanently deleted at the scheduled time. 
+The deletion cannot be cancelled once scheduled.
+
+You will receive another notification when the deletion is completed, and a final notification 
+confirming whether the deletion was successful.
+
+This is an automated notification from the Crawl Infrastructure Pipeline.
+"""
+    
+    # Send email
+    try:
+        ses.send_email(
+            Source=sender,
+            Destination={"ToAddresses": recipients},
+            Message={
+                "Subject": {"Data": subject},
+                "Body": {
+                    "Text": {"Data": text_body},
+                    "Html": {"Data": html_body}
+                }
+            }
+        )
+        logger.info(f"Scheduled deletion notification sent to {', '.join(recipients)}")
+    except Exception as e:
+        logger.error(f"Failed to send notification email: {e}")
 
 
 def create_scheduled_rule(
@@ -240,6 +398,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
         
         logger.info(f"Successfully scheduled deletions and checks: {json.dumps(result)}")
+        
+        # Send notification about scheduled deletions
+        send_scheduled_notification(folders, deletion_time, check_time, execution_id)
         
         return {
             "statusCode": 200,
