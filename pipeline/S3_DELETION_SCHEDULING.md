@@ -32,9 +32,13 @@ After cluster destruction, the pipeline can automatically schedule the deletion 
 The system sends three types of notifications:
 
 1. **Scheduling Notification** (immediate):
-   - Lists all folders scheduled for deletion
-   - Shows when deletion will occur
-   - Shows when verification will occur
+   - Complete list of S3 folders scheduled for deletion (full s3:// paths)
+   - Current time in EST/EDT timezone
+   - Deletion time in both local (EST/EDT) and UTC formats
+   - Time remaining until deletion (in minutes and hours)
+   - Verification time with timezone information
+   - Warning message about permanent deletion
+   - Execution ID for tracking
 
 2. **Deletion Notification** (after deletion delay):
    - Confirms which folders were deleted

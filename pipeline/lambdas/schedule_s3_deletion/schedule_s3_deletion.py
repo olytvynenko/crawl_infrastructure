@@ -115,14 +115,36 @@ def send_scheduled_notification(
         logger.warning("No recipients configured for notifications")
         return
     
-    # Generate email content
-    subject = f"📅 S3 Deletion Scheduled for {len(folders)} folders"
+    # Get current time and timezone info
+    current_utc = datetime.utcnow()
     
-    # Build folder list HTML
+    # Convert to EST/EDT (US Eastern Time)
+    # Note: For production, consider using pytz or zoneinfo for proper timezone handling
+    # For now, using a simple offset (-5 for EST, -4 for EDT)
+    # Assuming EDT during summer months (March-November)
+    current_month = current_utc.month
+    is_dst = 3 <= current_month <= 11
+    tz_offset = -4 if is_dst else -5
+    tz_name = "EDT" if is_dst else "EST"
+    
+    current_local = current_utc + timedelta(hours=tz_offset)
+    deletion_time_local = deletion_time + timedelta(hours=tz_offset)
+    check_time_local = check_time + timedelta(hours=tz_offset)
+    
+    # Generate email content
+    subject = f"📅 S3 Deletion Scheduled: {len(folders)} folders at {deletion_time_local.strftime('%I:%M %p')} {tz_name}"
+    
+    # Build detailed folder list HTML with sizes if available
     folder_list_html = ""
+    total_size_estimate = 0
     for folder in folders:
         s3_path = f"s3://{folder['bucket']}/{folder['prefix']}"
-        folder_list_html += f"<li><code>{s3_path}</code></li>"
+        folder_list_html += f"""
+        <li style="margin-bottom: 8px;">
+            <code style="background-color: #f5f5f5; padding: 4px 8px; border-radius: 4px; font-size: 14px;">
+                {s3_path}
+            </code>
+        </li>"""
     
     html_body = f"""
     <!DOCTYPE html>
@@ -130,32 +152,75 @@ def send_scheduled_notification(
     <head>
         <style>
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background-color: #cce5ff; border: 1px solid #b8daff; padding: 20px; border-radius: 5px; margin-bottom: 20px; }}
-            .details {{ background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-            .folder-list {{ background-color: #fff; border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; }}
-            code {{ background-color: #f1f3f4; padding: 2px 5px; border-radius: 3px; font-family: monospace; }}
+            .container {{ max-width: 700px; margin: 0 auto; padding: 20px; }}
+            .header {{ background-color: #fff3cd; border: 1px solid #ffeeba; padding: 20px; border-radius: 5px; margin-bottom: 20px; }}
+            .header h2 {{ color: #856404; margin: 0 0 10px 0; }}
+            .current-time {{ background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; }}
+            .details {{ background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }}
+            .details table {{ width: 100%; border-collapse: collapse; }}
+            .details td {{ padding: 8px 0; vertical-align: top; }}
+            .details td:first-child {{ font-weight: bold; width: 140px; }}
+            .folder-list {{ background-color: #fff; border: 2px solid #dc3545; padding: 20px; border-radius: 5px; }}
+            .folder-list h3 {{ color: #dc3545; margin-top: 0; }}
+            .folder-list ul {{ list-style-type: none; padding-left: 0; }}
+            .folder-list li {{ margin-bottom: 10px; }}
+            code {{ background-color: #f8f9fa; padding: 6px 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; display: inline-block; border: 1px solid #dee2e6; }}
+            .warning {{ background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            .warning-icon {{ color: #dc3545; font-size: 1.2em; }}
+            .time-highlight {{ color: #dc3545; font-weight: bold; font-size: 1.1em; }}
             .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #6c757d; font-size: 0.9em; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h2>📅 S3 Deletion Scheduled</h2>
-                <p>{len(folders)} folder(s) have been scheduled for deletion.</p>
+                <h2>⚠️ S3 Deletion Scheduled - Action Required</h2>
+                <p style="margin: 0; font-size: 1.1em;">{len(folders)} folder(s) will be <strong>permanently deleted</strong></p>
+            </div>
+            
+            <div class="current-time">
+                <strong>Current Time:</strong> {current_local.strftime('%B %d, %Y at %I:%M:%S %p')} {tz_name}
             </div>
             
             <div class="details">
-                <h3>Schedule Details:</h3>
-                <ul>
-                    <li><strong>Deletion Time:</strong> {deletion_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((deletion_time - datetime.utcnow()).total_seconds() / 3600)} hours from now)</li>
-                    <li><strong>Verification Time:</strong> {check_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((check_time - deletion_time).total_seconds() / 3600)} hours after deletion)</li>
-                    <li><strong>Execution ID:</strong> {execution_id}</li>
-                </ul>
+                <h3 style="margin-top: 0;">📅 Deletion Schedule</h3>
+                <table>
+                    <tr>
+                        <td>Deletion Time:</td>
+                        <td>
+                            <span class="time-highlight">{deletion_time_local.strftime('%B %d, %Y at %I:%M:%S %p')} {tz_name}</span><br>
+                            <span style="color: #6c757d; font-size: 0.9em;">
+                                ({deletion_time.strftime('%Y-%m-%d %H:%M:%S')} UTC)<br>
+                                In {int((deletion_time - current_utc).total_seconds() / 60)} minutes ({round((deletion_time - current_utc).total_seconds() / 3600, 1)} hours)
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Verification Time:</td>
+                        <td>
+                            {check_time_local.strftime('%B %d, %Y at %I:%M:%S %p')} {tz_name}<br>
+                            <span style="color: #6c757d; font-size: 0.9em;">
+                                ({check_time.strftime('%Y-%m-%d %H:%M:%S')} UTC)<br>
+                                {int((check_time - deletion_time).total_seconds() / 60)} minutes after deletion
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Execution ID:</td>
+                        <td><code style="font-size: 11px;">{execution_id}</code></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="warning">
+                <p style="margin: 0;">
+                    <span class="warning-icon">⚠️</span> <strong>WARNING:</strong> The following S3 folders and ALL their contents 
+                    will be permanently deleted. This action cannot be undone or cancelled.
+                </p>
             </div>
             
             <div class="folder-list">
-                <h3>Folders Scheduled for Deletion:</h3>
+                <h3>🗑️ Folders to be Deleted:</h3>
                 <ul>
                     {folder_list_html}
                 </ul>
@@ -163,15 +228,15 @@ def send_scheduled_notification(
             
             <div class="footer">
                 <p>
-                    <strong>Important:</strong> These folders and all their contents will be permanently deleted at the scheduled time. 
-                    The deletion cannot be cancelled once scheduled.
+                    <strong>Next Steps:</strong><br>
+                    • Review the folders listed above<br>
+                    • Ensure any important data has been backed up<br>
+                    • You will receive a confirmation email after deletion<br>
+                    • A final verification email will confirm successful deletion
                 </p>
-                <p>
-                    You will receive another notification when the deletion is completed, and a final notification 
-                    confirming whether the deletion was successful.
-                </p>
-                <p>
-                    <em>This is an automated notification from the Crawl Infrastructure Pipeline.</em>
+                <p style="margin-top: 15px;">
+                    <em>This is an automated notification from the Crawl Infrastructure Pipeline.<br>
+                    Do not reply to this email.</em>
                 </p>
             </div>
         </div>
@@ -180,23 +245,35 @@ def send_scheduled_notification(
     """
     
     text_body = f"""
-S3 DELETION SCHEDULED
+WARNING: S3 DELETION SCHEDULED
 
-{len(folders)} folder(s) have been scheduled for deletion.
+{len(folders)} folder(s) will be PERMANENTLY DELETED.
 
-Schedule Details:
-- Deletion Time: {deletion_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((deletion_time - datetime.utcnow()).total_seconds() / 3600)} hours from now)
-- Verification Time: {check_time.strftime('%Y-%m-%d %H:%M:%S UTC')} ({int((check_time - deletion_time).total_seconds() / 3600)} hours after deletion)
-- Execution ID: {execution_id}
+Current Time: {current_local.strftime('%B %d, %Y at %I:%M:%S %p')} {tz_name}
 
-Folders Scheduled for Deletion:
-{chr(10).join([f"- s3://{f['bucket']}/{f['prefix']}" for f in folders])}
+DELETION SCHEDULE:
+==================
+Deletion Time: {deletion_time_local.strftime('%B %d, %Y at %I:%M:%S %p')} {tz_name}
+               ({deletion_time.strftime('%Y-%m-%d %H:%M:%S')} UTC)
+               In {int((deletion_time - current_utc).total_seconds() / 60)} minutes
 
-IMPORTANT: These folders and all their contents will be permanently deleted at the scheduled time. 
-The deletion cannot be cancelled once scheduled.
+Verification:  {check_time_local.strftime('%B %d, %Y at %I:%M:%S %p')} {tz_name}
+               ({check_time.strftime('%Y-%m-%d %H:%M:%S')} UTC)
 
-You will receive another notification when the deletion is completed, and a final notification 
-confirming whether the deletion was successful.
+Execution ID: {execution_id}
+
+FOLDERS TO BE DELETED:
+=====================
+{chr(10).join([f"• s3://{f['bucket']}/{f['prefix']}" for f in folders])}
+
+⚠️  WARNING: These folders and ALL their contents will be permanently deleted.
+This action cannot be undone or cancelled.
+
+Next Steps:
+- Review the folders listed above
+- Ensure any important data has been backed up
+- You will receive a confirmation email after deletion
+- A final verification email will confirm successful deletion
 
 This is an automated notification from the Crawl Infrastructure Pipeline.
 """
