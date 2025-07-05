@@ -152,7 +152,11 @@ def cleanup_eventbridge_rule(rule_name: str) -> None:
         rule_name: Name of the rule to delete
     """
     try:
-        # Remove targets first
+        # First disable the rule to prevent further executions
+        events.disable_rule(Name=rule_name)
+        logger.info(f"Disabled EventBridge rule: {rule_name}")
+        
+        # Remove targets
         events.remove_targets(Rule=rule_name, Ids=["1"])
         # Then delete the rule
         events.delete_rule(Name=rule_name)
@@ -181,6 +185,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     folders = event.get("folders", [])
     execution_id = event.get("execution_id", "unknown")
     check_rule_name = event.get("check_rule_name")
+    
+    # Get the rule name that triggered this Lambda (if from EventBridge)
+    deletion_rule_name = None
+    if "source" in event and event["source"] == "aws.events":
+        # This Lambda was triggered by EventBridge
+        deletion_rule_name = f"s3-deletion-{execution_id}"
     
     if not folders:
         logger.warning("No folders specified for deletion")
@@ -232,6 +242,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 logger.info(f"Updated check rule {check_rule_name} with deletion results")
         except Exception as e:
             logger.warning(f"Failed to update check rule: {e}")
+    
+    # Clean up the EventBridge rule that triggered this Lambda
+    if deletion_rule_name:
+        cleanup_eventbridge_rule(deletion_rule_name)
     
     # Prepare response
     total_deleted = sum(r["deleted_count"] for r in results)

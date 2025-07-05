@@ -318,10 +318,10 @@ def create_scheduled_rule(
     Returns:
         ARN of the created rule
     """
-    # Create a one-time schedule expression
-    # EventBridge "at" expression format: at(yyyy-mm-ddThh:mm:ss)
-    # The time must be in UTC and at least 1 minute in the future
-    schedule_expression = f"at({schedule_time.strftime('%Y-%m-%dT%H:%M:%S')})"
+    # Create a one-time schedule expression using cron format
+    # EventBridge doesn't support "at" expressions without timezone, so we use cron
+    # Cron format: minute hour day month day-of-week year
+    schedule_expression = f"cron({schedule_time.minute} {schedule_time.hour} {schedule_time.day} {schedule_time.month} ? {schedule_time.year})"
     logger.info(f"Creating rule with schedule expression: {schedule_expression}")
     
     try:
