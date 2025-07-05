@@ -239,8 +239,9 @@ def create_scheduled_rule(
     Returns:
         ARN of the created rule
     """
-    # Create a one-time schedule expression (EventBridge requires UTC)
-    # Format: at(yyyy-mm-ddThh:mm:ss)
+    # Create a one-time schedule expression
+    # EventBridge "at" expression format: at(yyyy-mm-ddThh:mm:ss)
+    # The time must be in UTC and at least 1 minute in the future
     schedule_expression = f"at({schedule_time.strftime('%Y-%m-%dT%H:%M:%S')})"
     logger.info(f"Creating rule with schedule expression: {schedule_expression}")
     
@@ -283,7 +284,8 @@ def create_scheduled_rule(
         return rule_arn
         
     except Exception as e:
-        logger.error(f"Failed to create EventBridge rule: {e}")
+        logger.error(f"Failed to create EventBridge rule '{rule_name}' with expression '{schedule_expression}': {e}")
+        logger.error(f"Schedule time was: {schedule_time.isoformat()}, current time: {datetime.utcnow().isoformat()}")
         raise
 
 
