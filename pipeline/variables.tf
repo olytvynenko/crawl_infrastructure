@@ -46,7 +46,7 @@ variable "wpapi_delta_upsert" {
 
   default = {
     job_name          = "delta-upsert"
-    script_path       = "scripts/delta_upsert.py"
+    script_path       = "spark/delta_upsert.py"
     coalesce          = 10
     stage             = "1"
     target_file_size  = 500
@@ -71,7 +71,7 @@ variable "sitemap_generator" {
 
   default = {
     job_name          = "sitemap-seed-generator"
-    script_path       = "scripts/sitemap_seed_generator.py"
+    script_path       = "spark/sitemap_seed_generator.py"
     stage = "sm"
     glue_version      = "5.0"
     worker_type       = "G.1X"

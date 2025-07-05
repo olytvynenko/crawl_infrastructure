@@ -51,7 +51,7 @@ aws codebuild start-build --project-name cluster-manager \
   - `terraform.tfvars.json` - Cluster configurations (nv, nc, ohio, oregon)
 - **`pipeline/`** - AWS infrastructure for data processing:
   - `lambdas/` - Resource termination and S3 deletion monitoring
-  - `scripts/` - Delta Lake operations and sitemap processing
+  - `spark/` - Delta Lake operations and sitemap processing
   - Terraform modules for Glue jobs and CI/CD
 
 ### Key Design Patterns
