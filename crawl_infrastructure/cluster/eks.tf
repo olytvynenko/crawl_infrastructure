@@ -71,8 +71,6 @@ module "eks" {
           ebs = {
             volume_size           = 30
             volume_type           = "gp3"
-            encrypted             = true
-            kms_key_id           = aws_kms_key.ebs.id
             delete_on_termination = true
           }
         }
