@@ -1,1 +1,0 @@
-# Lambda package for pipeline advance notification

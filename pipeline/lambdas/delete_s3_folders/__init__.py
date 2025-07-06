@@ -1,1 +1,0 @@
-# Lambda package for deleting S3 folders
