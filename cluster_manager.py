@@ -269,16 +269,21 @@ class ClusterManager:
                 status = self._check_cluster_status(cluster_name, region)
                 
                 if status == "ACTIVE":
-                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Running terraform refresh before apply to detect missing resources.")
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Forcing recreation of node groups to ensure correct node count.")
                     # Select workspace first
                     self._workspace_select_or_create(ws)
-                    # Refresh state to detect any missing resources
+                    
+                    # Force apply on managed node group to ensure desired node count
                     try:
-                        logging.info("Refreshing terraform state to detect missing resources...")
+                        logging.info("Refreshing terraform state...")
                         self._run("refresh")
+                        
+                        # Apply specifically targeting the node group to force desired size
+                        logging.info("Applying managed node group configuration to ensure correct node count...")
+                        self._run("apply", "-auto-approve", "-target=module.cluster.module.eks.module.eks_managed_node_group")
                     except RuntimeError as e:
-                        logging.warning(f"Terraform refresh failed: {e}. Continuing with apply...")
-                    # Continue with apply below
+                        logging.warning(f"Pre-apply operations failed: {e}. Continuing with full apply...")
+                    # Continue with full apply below
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
