@@ -284,16 +284,31 @@ class ClusterManager:
             # Always select workspace and apply
             self._workspace_select_or_create(ws)
             
-            # Import existing cluster if it's active
+            # Update kubeconfig if cluster is active
             if status == "ACTIVE":
                 try:
-                    # Try to import the existing cluster into terraform state
                     cluster_config = self._get_cluster_config(ws)
                     cluster_name = cluster_config['name']
-                    logging.info(f"Importing existing cluster '{cluster_name}' into terraform state...")
-                    self._run("import", "module.cluster.aws_eks_cluster.this[0]", cluster_name)
+                    region = cluster_config.get('region', 'us-east-1')
+                    
+                    # Update kubeconfig to ensure authentication works
+                    logging.info(f"Updating kubeconfig for existing cluster '{cluster_name}'...")
+                    update_cmd = ["aws", "eks", "update-kubeconfig", "--name", cluster_name, "--region", region]
+                    result = subprocess.run(update_cmd, text=True, capture_output=True)
+                    if result.returncode != 0:
+                        logging.warning(f"Failed to update kubeconfig: {result.stderr}")
+                    else:
+                        logging.info("Kubeconfig updated successfully")
+                    
+                    # Refresh terraform state instead of import
+                    logging.info("Refreshing terraform state for existing cluster...")
+                    try:
+                        self._run("refresh")
+                        logging.info("State refresh completed successfully")
+                    except Exception as e:
+                        logging.warning(f"State refresh failed: {e}. Continuing with apply...")
                 except Exception as e:
-                    logging.warning(f"Failed to import cluster into terraform state: {e}. Continuing with apply...")
+                    logging.warning(f"Failed to handle existing cluster: {e}. Continuing with apply...")
             
             # Apply to create any missing resources
             self._run("apply", "-auto-approve")

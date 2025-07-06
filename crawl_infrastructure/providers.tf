@@ -19,7 +19,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.cluster.cluster_name]
+    args        = ["eks", "get-token", "--cluster-name", module.cluster.cluster_name, "--region", local.env[terraform.workspace]["region"]]
   }
 }
 
@@ -31,7 +31,7 @@ provider "kubectl" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.cluster.cluster_name]
+    args        = ["eks", "get-token", "--cluster-name", module.cluster.cluster_name, "--region", local.env[terraform.workspace]["region"]]
   }
 }
 
@@ -42,7 +42,7 @@ provider "helm" {
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args        = ["eks", "get-token", "--cluster-name", module.cluster.cluster_name]
+      args        = ["eks", "get-token", "--cluster-name", module.cluster.cluster_name, "--region", local.env[terraform.workspace]["region"]]
     }
   }
 }
