@@ -41,19 +41,15 @@ resource "null_resource" "wait_for_cluster" {
       echo "Waiting for EKS cluster to be ready..."
       aws eks wait cluster-active --name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]}
       
-      echo "Waiting for node group to be active..."
-      for i in {1..60}; do
-        READY_NODES=$(aws eks describe-nodegroup --cluster-name ${module.cluster.cluster_name} --nodegroup-name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]} --query 'nodegroup.status' --output text 2>/dev/null || echo "CREATING")
-        if [ "$READY_NODES" = "ACTIVE" ]; then
-          echo "Node group is active"
+      echo "Checking cluster connectivity..."
+      for i in {1..30}; do
+        if aws eks get-token --cluster-name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]} &>/dev/null; then
+          echo "Cluster is accessible"
           break
         fi
-        echo "Node group status: $READY_NODES, waiting..."
-        sleep 10
+        echo "Waiting for cluster to be accessible... ($i/30)"
+        sleep 2
       done
-      
-      # Additional wait to ensure nodes are fully ready
-      sleep 30
     EOT
   }
 }
