@@ -332,12 +332,7 @@ class ClusterManager:
             
             # Stage 2: Install Karpenter
             logging.info("Stage 2: Installing Karpenter...")
-            try:
-                self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
-            except RuntimeError as e:
-                logging.error(f"Karpenter installation failed: {e}")
-                # Continue anyway - cluster is still usable without Karpenter
-                logging.warning("Continuing without Karpenter - cluster will not have autoscaling")
+            self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
             
             # Stage 3: Apply any remaining resources
             logging.info("Stage 3: Applying remaining resources...")
