@@ -78,6 +78,10 @@ spec:
         env:
         - name: PYTHONUNBUFFERED
           value: "1"
+        - name: AWS_REGION
+          value: "{AWS_REGION}"
+        - name: CLUSTER_NAME
+          value: "{CLUSTER_NAME}"
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -154,16 +158,28 @@ def lambda_handler(event, context):
         'oregon': 'linxact-or-us-west-2'
     }
     
+    # Region mapping
+    region_map = {
+        'nv': 'us-east-1',
+        'nc': 'us-west-1',
+        'ohio': 'us-east-2',
+        'oregon': 'us-west-2'
+    }
+    
     for cluster_alias in clusters:
         cluster_name = cluster_map.get(cluster_alias, cluster_alias)
+        cluster_region = region_map.get(cluster_alias, 'us-east-1')
+        
         try:
             # Get cluster info
             cluster_info = eks.describe_cluster(name=cluster_name)
             endpoint = cluster_info['cluster']['endpoint']
             cert_authority = cluster_info['cluster']['certificateAuthority']['data']
             
-            # Update manifest with image URI
+            # Update manifest with image URI and environment variables
             manifest = DEPLOYMENT_MANIFEST.replace('{IMAGE_URI}', image_uri)
+            manifest = manifest.replace('{AWS_REGION}', cluster_region)
+            manifest = manifest.replace('{CLUSTER_NAME}', cluster_alias)
             
             # Note: In a real implementation, you would use the Kubernetes Python client
             # or kubectl via Lambda layer to apply this manifest.
