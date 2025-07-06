@@ -269,24 +269,9 @@ class ClusterManager:
                 status = self._check_cluster_status(cluster_name, region)
                 
                 if status == "ACTIVE":
-                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Ensuring all components are properly deployed.")
-                    # Select workspace first
-                    self._workspace_select_or_create(ws)
-                    
-                    # Force redeployment of critical components
-                    try:
-                        logging.info("Refreshing terraform state...")
-                        self._run("refresh")
-                        
-                        # Apply both managed node group and Karpenter to ensure proper deployment
-                        logging.info("Applying EKS managed node group to ensure correct node count...")
-                        self._run("apply", "-auto-approve", "-target=module.cluster.module.eks.module.eks_managed_node_group")
-                        
-                        logging.info("Applying Karpenter deployment to ensure 2 controller replicas...")
-                        self._run("apply", "-auto-approve", "-target=module.karpenter.helm_release.karpenter")
-                    except RuntimeError as e:
-                        logging.warning(f"Pre-apply operations failed: {e}. Continuing with full apply...")
-                    # Continue with full apply below
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Proceeding with terraform apply.")
+                    # When cluster exists, skip targeted operations that require kubeconfig
+                    # Let terraform apply handle everything with proper provider initialization
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
