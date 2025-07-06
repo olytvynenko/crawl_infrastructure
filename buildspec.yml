@@ -25,7 +25,7 @@ phases:
     commands:
       - echo ">> run cluster_manager.py with ACTION=$ACTION CLUSTERS=$CLUSTERS"
       - ls -alR crawl_infrastructure | head -20   # ← added debug listing
-      - python cluster_manager.py
+      - python crawl_infrastructure/cluster_manager.py
 artifacts:
   files:
     - '**/*.log'

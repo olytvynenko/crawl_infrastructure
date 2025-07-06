@@ -300,11 +300,16 @@ class ClusterManager:
                     else:
                         logging.info("Kubeconfig updated successfully")
                     
-                    # Refresh terraform state instead of import
-                    logging.info("Refreshing terraform state for existing cluster...")
+                    # Refresh only the cluster module first to populate outputs
+                    logging.info("Refreshing terraform state for cluster module...")
                     try:
+                        self._run("refresh", "-target=module.cluster")
+                        logging.info("Cluster module refresh completed successfully")
+                        
+                        # Now refresh the rest
+                        logging.info("Refreshing remaining terraform state...")
                         self._run("refresh")
-                        logging.info("State refresh completed successfully")
+                        logging.info("Full state refresh completed successfully")
                     except Exception as e:
                         logging.warning(f"State refresh failed: {e}. Continuing with apply...")
                 except Exception as e:
@@ -385,8 +390,9 @@ def main():
 
     clusters = _clusters_from_config()
 
-    repo_root = Path(__file__).resolve().parent
-    mgr = ClusterManager(repo_root / "crawl_infrastructure")
+    # Script is now inside crawl_infrastructure directory
+    working_dir = Path(__file__).resolve().parent
+    mgr = ClusterManager(working_dir)
 
     if action in {"create", "apply"}:
         mgr.create(clusters)
