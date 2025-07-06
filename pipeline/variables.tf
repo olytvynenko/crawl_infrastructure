@@ -6,6 +6,7 @@ variable "base_aws_region" { default = "us-east-1" }
 variable "cluster_manager_project" { default = "cluster-manager" }
 variable "crawler_arm_build_project" { default = "crawler-arm-build" }
 variable "crawler_runner_project" { default = "crawler-runner" }
+variable "exit_code_monitor_build_project" { default = "exit-code-monitor-build" }
 
 variable "dataset_base" { default = "links/delta/dataset-2409/" }
 variable "seed_base" { default = "update/seed/" }

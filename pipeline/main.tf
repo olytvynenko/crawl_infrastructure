@@ -31,6 +31,7 @@ locals {
     "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/${var.cluster_manager_project}",
     "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/${var.crawler_arm_build_project}",
     "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/${var.crawler_runner_project}",
+    "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/exit-code-monitor-build",
   ]
   dataset_base = var.dataset_base
   seed_base    = var.seed_base
