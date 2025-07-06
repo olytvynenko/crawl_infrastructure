@@ -38,7 +38,8 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "dynamodb:GetItem",
       "dynamodb:PutItem",
       "dynamodb:DeleteItem",
-      "dynamodb:DescribeTable"
+      "dynamodb:DescribeTable",
+      "dynamodb:DescribeContinuousBackups"
     ]
     resources = [
       "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/terraform-locks"
@@ -355,6 +356,16 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/eks.amazonaws.com/*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/eks-nodegroup.amazonaws.com/*"
     ]
+  }
+
+  # STS permissions for ECR Public
+  statement {
+    sid    = "STSServiceBearerToken"
+    effect = "Allow"
+    actions = [
+      "sts:GetServiceBearerToken"
+    ]
+    resources = ["*"]
   }
 
 }
