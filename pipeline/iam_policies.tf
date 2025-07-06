@@ -39,7 +39,8 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "dynamodb:PutItem",
       "dynamodb:DeleteItem",
       "dynamodb:DescribeTable",
-      "dynamodb:DescribeContinuousBackups"
+      "dynamodb:DescribeContinuousBackups",
+      "dynamodb:DescribeTimeToLive"
     ]
     resources = [
       "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/terraform-locks"
@@ -158,7 +159,8 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "ec2:DescribeImages",
       "ec2:DescribeKeyPairs",
       "ec2:DescribeLaunchTemplates",
-      "ec2:DescribeLaunchTemplateVersions"
+      "ec2:DescribeLaunchTemplateVersions",
+      "ec2:DescribeVpcAttribute"
     ]
     resources = ["*"]
   }
@@ -197,7 +199,8 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/eks-*",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/karpenter-*",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*-eks-node-group-*"
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*-eks-node-group-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/codebuild-cluster-manager"
     ]
   }
 
