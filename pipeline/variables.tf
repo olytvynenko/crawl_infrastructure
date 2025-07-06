@@ -9,8 +9,25 @@ variable "crawler_runner_project" { default = "crawler-runner" }
 variable "exit_code_monitor_build_project" { default = "exit-code-monitor-build" }
 
 variable "dataset_base" { default = "links/delta/dataset-2409/" }
-variable "seed_base" { default = "update/seed/" }
-variable "results_base" { default = "update/results/" }
+
+# Data path configuration - can be overridden for testing
+variable "data_path_prefix" {
+  description = "Prefix for data paths (e.g., 'update' for production, 'test' for testing)"
+  type        = string
+  default     = "update"
+}
+
+variable "seed_base" { 
+  description = "Base path for seed data - constructed from data_path_prefix"
+  type        = string
+  default     = "update/seed/" 
+}
+
+variable "results_base" { 
+  description = "Base path for results data - constructed from data_path_prefix"
+  type        = string
+  default     = "update/results/" 
+}
 
 variable "checkpoint_table" {
   description = "DynamoDB table for storing execution checkpoints"
@@ -128,6 +145,19 @@ variable "s3_folders_to_delete" {
   type = list(string)
   description = "List of S3 folder paths relative to s3://{bucket}/{dataset}/ to delete after cluster destruction"
   default = []
+}
+
+# Default data paths configuration for State Machine
+variable "default_data_paths_config" {
+  description = "Default data paths configuration for the State Machine execution"
+  type = object({
+    seed_path_prefix    = string
+    results_path_prefix = string
+  })
+  default = {
+    seed_path_prefix    = "update/seed/"
+    results_path_prefix = "update/results/"
+  }
 }
 
 variable "s3_deletion_delay_seconds" {

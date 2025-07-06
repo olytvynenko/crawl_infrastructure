@@ -34,8 +34,9 @@ locals {
     "arn:aws:codebuild:us-east-1:${data.aws_caller_identity.this.account_id}:project/exit-code-monitor-build",
   ]
   dataset_base = var.dataset_base
-  seed_base    = var.seed_base
-  results_base = var.results_base
+  # Compute seed and results paths based on data_path_prefix
+  seed_base    = "${var.data_path_prefix}/seed/"
+  results_base = "${var.data_path_prefix}/results/"
   # Add checkpoint steps
   checkpoint_step = {
     Type     = "Task"
@@ -401,8 +402,8 @@ locals {
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "h" },
             { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "wordpress" },
-            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/${var.wpapi_delta_upsert.stage}/" },
-            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/${var.wpapi_delta_upsert.stage}/" }
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "${local.seed_base}${var.wpapi_delta_upsert.stage}/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "${local.results_base}${var.wpapi_delta_upsert.stage}/" }
           ]
         },
         ResultPath = "$.crawl_result",
@@ -523,8 +524,8 @@ locals {
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "nh" },
             { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "wordpress" },
-            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/${var.wpapi_delta_upsert.stage}/" },
-            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/${var.wpapi_delta_upsert.stage}/" }
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "${local.seed_base}${var.wpapi_delta_upsert.stage}/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "${local.results_base}${var.wpapi_delta_upsert.stage}/" }
           ]
         },
         ResultPath = "$.crawl_result",
@@ -621,8 +622,8 @@ locals {
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "h" },
             { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "sitemaps" },
-            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sitemaps/" },
-            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sitemaps/" }
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "${local.seed_base}sitemaps/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "${local.results_base}sitemaps/" }
           ]
         },
         ResultPath = null,
@@ -694,8 +695,8 @@ locals {
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "nh" },
             { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "sitemaps" },
-            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sitemaps/" },
-            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sitemaps/" }
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "${local.seed_base}sitemaps/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "${local.results_base}sitemaps/" }
           ]
         },
         ResultPath = null,
@@ -798,8 +799,8 @@ locals {
         Parameters = {
           JobName = var.sitemap_generator.job_name,
           Arguments = {
-            "--in_path"  = "update/results/sitemaps/",
-            "--out_path" = "update/seed/${var.sitemap_generator.stage}/"
+            "--in_path"  = "${local.results_base}sitemaps/",
+            "--out_path" = "${local.seed_base}${var.sitemap_generator.stage}/"
           }
         },
         ResultPath = null,
@@ -840,8 +841,8 @@ locals {
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "h" },
             { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "links" },
-            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sm/" },
-            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sm/" }
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "${local.seed_base}sm/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "${local.results_base}sm/" }
           ]
         },
         ResultPath = null,
@@ -913,8 +914,8 @@ locals {
           EnvironmentVariablesOverride = [
             { Name = "DATASET_TYPE", Type = "PLAINTEXT", Value = "nh" },
             { Name = "WORKFLOW", Type = "PLAINTEXT", Value = "links" },
-            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "update/seed/sm/" },
-            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "update/results/sm/" }
+            { Name = "SEED_PATH", Type = "PLAINTEXT", Value = "${local.seed_base}sm/" },
+            { Name = "OUT_PATH", Type = "PLAINTEXT", Value = "${local.results_base}sm/" }
           ]
         },
         ResultPath = null,
