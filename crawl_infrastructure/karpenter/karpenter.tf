@@ -86,6 +86,33 @@ resource "helm_release" "karpenter" {
     value = module.karpenter.queue_name
   }
 
+  # Ensure Karpenter runs with 2 replicas for high availability
+  set {
+    name  = "replicas"
+    value = "2"
+  }
+
+  # Add tolerations for CriticalAddonsOnly taint
+  set {
+    name  = "tolerations[0].key"
+    value = "CriticalAddonsOnly"
+  }
+  
+  set {
+    name  = "tolerations[0].operator"
+    value = "Equal"
+  }
+  
+  set {
+    name  = "tolerations[0].value"
+    value = "true"
+  }
+  
+  set {
+    name  = "tolerations[0].effect"
+    value = "NoSchedule"
+  }
+
 }
 
 resource "kubectl_manifest" "karpenter_nodepool" {

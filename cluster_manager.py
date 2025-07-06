@@ -269,18 +269,21 @@ class ClusterManager:
                 status = self._check_cluster_status(cluster_name, region)
                 
                 if status == "ACTIVE":
-                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Forcing recreation of node groups to ensure correct node count.")
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Ensuring all components are properly deployed.")
                     # Select workspace first
                     self._workspace_select_or_create(ws)
                     
-                    # Force apply on managed node group to ensure desired node count
+                    # Force redeployment of critical components
                     try:
                         logging.info("Refreshing terraform state...")
                         self._run("refresh")
                         
-                        # Apply specifically targeting the node group to force desired size
-                        logging.info("Applying managed node group configuration to ensure correct node count...")
+                        # Apply both managed node group and Karpenter to ensure proper deployment
+                        logging.info("Applying EKS managed node group to ensure correct node count...")
                         self._run("apply", "-auto-approve", "-target=module.cluster.module.eks.module.eks_managed_node_group")
+                        
+                        logging.info("Applying Karpenter deployment to ensure 2 controller replicas...")
+                        self._run("apply", "-auto-approve", "-target=module.karpenter.helm_release.karpenter")
                     except RuntimeError as e:
                         logging.warning(f"Pre-apply operations failed: {e}. Continuing with full apply...")
                     # Continue with full apply below
