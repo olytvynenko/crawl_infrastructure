@@ -41,15 +41,34 @@ resource "null_resource" "wait_for_cluster" {
       echo "Waiting for EKS cluster to be ready..."
       aws eks wait cluster-active --name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]}
       
-      echo "Checking cluster connectivity..."
-      for i in {1..30}; do
-        if aws eks get-token --cluster-name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]} &>/dev/null; then
-          echo "Cluster is accessible"
+      echo "Updating kubeconfig..."
+      aws eks update-kubeconfig --name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]}
+      
+      echo "Waiting for Kubernetes API to be responsive..."
+      for i in {1..60}; do
+        if kubectl get ns kube-system &>/dev/null; then
+          echo "Kubernetes API is responsive"
           break
         fi
-        echo "Waiting for cluster to be accessible... ($i/30)"
+        echo "Waiting for Kubernetes API... ($i/60)"
+        sleep 5
+      done
+      
+      echo "Waiting for CoreDNS to be ready..."
+      kubectl wait --for=condition=available --timeout=300s deployment/coredns -n kube-system || true
+      
+      echo "Verifying cluster authentication..."
+      for i in {1..30}; do
+        if aws eks get-token --cluster-name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]} &>/dev/null; then
+          echo "Cluster authentication verified"
+          break
+        fi
+        echo "Waiting for authentication... ($i/30)"
         sleep 2
       done
+      
+      # Give the cluster a moment to stabilize
+      sleep 10
     EOT
   }
 }
