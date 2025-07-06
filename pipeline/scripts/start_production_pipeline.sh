@@ -16,7 +16,7 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION=${AWS_REGION:-us-east-1}
 
 # State Machine ARN
-STATE_MACHINE_ARN="arn:aws:states:${REGION}:${ACCOUNT_ID}:stateMachine:crawl-pipeline"
+STATE_MACHINE_ARN="arn:aws:states:${REGION}:${ACCOUNT_ID}:stateMachine:crawl-build-state-machine"
 
 # Production configuration
 PROD_INPUT='{
@@ -24,22 +24,19 @@ PROD_INPUT='{
   "stages": {
     "crawler_arm_build": true,
     "cluster_create": true,
-    "crawler_build": true,
-    "crawl_hidden_dom2": true,
-    "crawl_non_hidden_dom2": true,
-    "crawl_wordpress_detect": true,
+    "crawl_wpapi_hidden": true,
+    "crawl_wpapi_non_hidden": true,
     "crawl_sitemap_hidden": true,
     "crawl_sitemap_non_hidden": true,
     "delta_upsert": true,
     "generate_sitemap_seeds": true,
     "crawl_urls_hidden": true,
     "crawl_urls_non_hidden": true,
-    "cluster_resize": false,
+    "sitemaps_delta_upsert": true,
     "cluster_destroy": true,
     "schedule_s3_deletion": true
   },
   "s3_deletion_config": {
-    "enabled": true,
     "folders": [
       "update/seed/",
       "update/results/"

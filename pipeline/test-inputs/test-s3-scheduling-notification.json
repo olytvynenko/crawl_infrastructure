@@ -17,7 +17,6 @@
     "schedule_s3_deletion": true
   },
   "s3_deletion_config": {
-    "enabled": true,
     "folders": [
       "tests/results/"
     ],

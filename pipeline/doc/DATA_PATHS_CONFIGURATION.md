@@ -53,7 +53,6 @@ When starting the State Machine execution, you can configure which S3 folders to
        "schedule_s3_deletion": true
      },
      "s3_deletion_config": {
-       "enabled": true,
        "folders": [
          "test/seed/",
          "test/results/"
@@ -72,7 +71,6 @@ When starting the State Machine execution, you can configure which S3 folders to
        "schedule_s3_deletion": true
      },
      "s3_deletion_config": {
-       "enabled": true,
        "folders": [
          "update/seed/",
          "update/results/"
@@ -108,13 +106,13 @@ Where:
 ### Using AWS CLI:
 ```bash
 aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:ACCOUNT_ID:stateMachine:crawl-pipeline \
+  --state-machine-arn arn:aws:states:us-east-1:ACCOUNT_ID:stateMachine:crawl-build-state-machine \
   --input file://example_state_machine_inputs.json
 ```
 
 ### Using AWS Console:
 1. Go to Step Functions console
-2. Select the crawl-pipeline state machine
+2. Select the crawl-build-state-machine state machine
 3. Click "Start execution"
 4. Copy the test configuration from `example_state_machine_inputs.json`
 5. Paste into the input field and start execution

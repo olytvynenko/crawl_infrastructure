@@ -224,7 +224,6 @@ variable "scheduled_pipeline_config" {
     notifications_enabled = bool
     stages = map(bool)
     s3_deletion_config = optional(object({
-      enabled = bool
       folders = list(string)
       deletion_delay_seconds = number
       check_delay_seconds = number
@@ -234,7 +233,6 @@ variable "scheduled_pipeline_config" {
     notifications_enabled = true
     stages = {}  # All stages enabled by default
     s3_deletion_config = {
-      enabled = true
       folders = []  # Will be computed based on data_path_prefix
       deletion_delay_seconds = 86400
       check_delay_seconds = 86520

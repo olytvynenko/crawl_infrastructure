@@ -1105,11 +1105,6 @@ locals {
             Variable      = "$.stages.schedule_s3_deletion",
             BooleanEquals = false,
             Next = "VerifyResourceTermination"
-          },
-          {
-            Variable      = "$.s3_deletion_config.enabled",
-            BooleanEquals = false,
-            Next = "VerifyResourceTermination"
           }
         ],
         Default = "ScheduleS3Deletion"

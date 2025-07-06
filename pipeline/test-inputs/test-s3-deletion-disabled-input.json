@@ -1,12 +1,11 @@
 {
-  "_comment": "Example showing how to disable S3 deletion even when the stage is enabled",
+  "_comment": "Example showing how to disable S3 deletion - set schedule_s3_deletion to false",
   "notifications_enabled": true,
   "stages": {
     "cluster_destroy": false,
-    "schedule_s3_deletion": true
+    "schedule_s3_deletion": false
   },
   "s3_deletion_config": {
-    "enabled": false,
     "folders": [
       "tests/results/"
     ],

@@ -17,17 +17,6 @@ variable "data_path_prefix" {
   default     = "update"
 }
 
-variable "seed_base" { 
-  description = "Base path for seed data - constructed from data_path_prefix"
-  type        = string
-  default     = "update/seed/" 
-}
-
-variable "results_base" { 
-  description = "Base path for results data - constructed from data_path_prefix"
-  type        = string
-  default     = "update/results/" 
-}
 
 variable "checkpoint_table" {
   description = "DynamoDB table for storing execution checkpoints"
@@ -35,11 +24,6 @@ variable "checkpoint_table" {
   default     = "crawl-execution-checkpoints"
 }
 
-variable "sitemap_seed_generator_project" {
-  description = "Name of the sitemap seed generator Glue job"
-  type        = string
-  default     = "sitemap-seed-generator"
-}
 
 ########################################################
 #  ✨  Glue Jobs Variables
@@ -122,17 +106,6 @@ variable "messenger_webhook_url" {
   default     = ""
 }
 
-variable "ec2_tag_key" {
-  description = "Optional tag key to mark instances that are subject to auto-deletion"
-  type        = string
-  default     = "AutoDelete"
-}
-
-variable "ec2_tag_value" {
-  description = "Optional tag value to mark instances that are subject to auto-deletion"
-  type        = string
-  default     = "true"
-}
 
 variable "tag_keys" {
   description = "Tag keys that the Lambda should look for on EC2 instances"
@@ -141,24 +114,6 @@ variable "tag_keys" {
 }
 
 # S3 deletion scheduling variables
-variable "s3_folders_to_delete" {
-  type = list(string)
-  description = "List of S3 folder paths relative to s3://{bucket}/{dataset}/ to delete after cluster destruction"
-  default = []
-}
-
-# Default data paths configuration for State Machine
-variable "default_data_paths_config" {
-  description = "Default data paths configuration for the State Machine execution"
-  type = object({
-    seed_path_prefix    = string
-    results_path_prefix = string
-  })
-  default = {
-    seed_path_prefix    = "update/seed/"
-    results_path_prefix = "update/results/"
-  }
-}
 
 variable "s3_deletion_delay_seconds" {
   type = number

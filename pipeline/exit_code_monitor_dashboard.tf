@@ -81,10 +81,10 @@ resource "aws_cloudwatch_dashboard" "exit_code_monitor" {
         height = 6
         properties = {
           metrics = [
-            ["CrawlerIPMonitor", "PodsProcessed", { "ExitCode": "0", stat = "Sum", period = 300 }],
-            [".", ".", { "ExitCode": "1", stat = "Sum", period = 300 }],
-            [".", ".", { "ExitCode": "2", stat = "Sum", period = 300 }],
-            [".", ".", { "ExitCode": "137", stat = "Sum", period = 300 }]
+            ["CrawlerIPMonitor", "PodsProcessed", "ExitCode", "0", { stat = "Sum", period = 300 }],
+            ["CrawlerIPMonitor", "PodsProcessed", "ExitCode", "1", { stat = "Sum", period = 300 }],
+            ["CrawlerIPMonitor", "PodsProcessed", "ExitCode", "2", { stat = "Sum", period = 300 }],
+            ["CrawlerIPMonitor", "PodsProcessed", "ExitCode", "137", { stat = "Sum", period = 300 }]
           ]
           view    = "timeSeries"
           stacked = true

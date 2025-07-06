@@ -104,7 +104,6 @@
         "schedule_s3_deletion": true
       },
       "s3_deletion_config": {
-        "enabled": true,
         "folders": [
           "update/results/crawl-2024/",
           "update/seed/temp/",

@@ -18,7 +18,6 @@
     "schedule_s3_deletion": false         // Schedule S3 folder deletion after cluster destruction
   },
   "s3_deletion_config": {                 // Configuration for S3 deletion (only used if schedule_s3_deletion is true)
-    "enabled": true,                      // Set to false to disable deletion even if schedule_s3_deletion is true
     "folders": [                          // List of S3 folders to delete (paths relative to s3://{bucket}/{dataset}/)
       // "update/results/crawl-",         // Example: deletes s3://{bucket}/{dataset}/update/results/crawl-*
       // "temp/",                          // Example: deletes s3://{bucket}/{dataset}/temp/

@@ -16,32 +16,28 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION=${AWS_REGION:-us-east-1}
 
 # State Machine ARN
-STATE_MACHINE_ARN="arn:aws:states:${REGION}:${ACCOUNT_ID}:stateMachine:crawl-pipeline"
+STATE_MACHINE_ARN="arn:aws:states:${REGION}:${ACCOUNT_ID}:stateMachine:crawl-build-state-machine"
 
-# Test configuration
+# Test configuration - WordPress crawl with data processing
 TEST_INPUT='{
   "notifications_enabled": true,
   "stages": {
     "crawler_arm_build": false,
     "cluster_create": true,
-    "crawler_build": true,
-    "crawl_hidden_dom2": true,
-    "crawl_non_hidden_dom2": true,
-    "crawl_wordpress_detect": false,
-    "crawl_sitemap_hidden": false,
-    "crawl_sitemap_non_hidden": false,
+    "crawl_wpapi_hidden": true,
+    "crawl_wpapi_non_hidden": true,
+    "crawl_sitemap_hidden": true,
+    "crawl_sitemap_non_hidden": true,
     "delta_upsert": false,
-    "generate_sitemap_seeds": false,
-    "crawl_urls_hidden": false,
-    "crawl_urls_non_hidden": false,
-    "cluster_resize": false,
+    "generate_sitemap_seeds": true,
+    "crawl_urls_hidden": true,
+    "crawl_urls_non_hidden": true,
+    "sitemaps_delta_upsert": false,
     "cluster_destroy": true,
     "schedule_s3_deletion": true
   },
   "s3_deletion_config": {
-    "enabled": true,
     "folders": [
-      "test/seed/",
       "test/results/"
     ],
     "deletion_delay_seconds": 300,
@@ -55,7 +51,7 @@ echo ""
 echo "Test Configuration:"
 echo "- Data paths: test/seed/ and test/results/"
 echo "- S3 deletion delay: 5 minutes"
-echo "- Stages: Limited crawl stages for testing"
+echo "- Stages: WordPress API crawl (hidden + non-hidden) + Delta upsert"
 echo ""
 
 # Confirm before starting
