@@ -271,9 +271,9 @@ class ClusterManager:
                 if status == "ACTIVE":
                     logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}.")
                     logging.info("Destroying existing cluster before creating a new one...")
-                    # Destroy the existing cluster first
+                    # Destroy the existing cluster first with force to handle auth issues
                     self._workspace_select_or_create(ws)
-                    self.destroy([ws])
+                    self.destroy([ws], force=True)
                     logging.info(f"Waiting for cluster '{cluster_name}' to be fully deleted...")
                     self._wait_for_cluster_deletion(cluster_name, region)
                 elif status == "DELETING":
@@ -282,7 +282,7 @@ class ClusterManager:
                 elif status is not None:
                     logging.warning(f"Cluster '{cluster_name}' exists with unexpected status: {status}. Will destroy and recreate.")
                     self._workspace_select_or_create(ws)
-                    self.destroy([ws])
+                    self.destroy([ws], force=True)
                     self._wait_for_cluster_deletion(cluster_name, region)
                 
             except Exception as e:
@@ -295,7 +295,7 @@ class ClusterManager:
             logging.info(f"Creating cluster for workspace '{ws}'...")
             self._run("apply", "-auto-approve")
 
-    def destroy(self, wss: Iterable[str]):
+    def destroy(self, wss: Iterable[str], force: bool = False):
         """Remove the selected workspaces.
 
         A two-step destroy is performed:
@@ -304,6 +304,8 @@ class ClusterManager:
            (they often hold finalizers that would block the full destroy).
            Errors in this step are logged but do **not** abort the run.
         2. Run a normal, unconditional `terraform destroy`.
+        
+        If force=True, remove problematic resources from state before destroy.
         """
         # Targets that frequently need explicit removal first
         karpenter_targets: list[str] = [
@@ -318,14 +320,31 @@ class ClusterManager:
         for ws in wss:
             self._workspace_select_or_create(ws)
 
-            # Step 1: best-effort cleanup of Karpenter resources
-            try:
-                self._run("destroy", "-auto-approve", *karpenter_targets)
-            except RuntimeError as exc:
-                # Log and continue – the full destroy will take care of leftovers
-                logging.warning(
-                    "targeted Karpenter destroy failed in workspace '%s': %s", ws, exc
-                )
+            # If force destroy, remove problematic resources from state
+            if force:
+                logging.info("Force destroy enabled - removing Helm/kubectl resources from state")
+                resources_to_remove = [
+                    "module.karpenter.helm_release.karpenter",
+                    "module.karpenter.kubectl_manifest.karpenter_nodepool",
+                    "module.karpenter.kubectl_manifest.karpenter_node_class"
+                ]
+                for resource in resources_to_remove:
+                    try:
+                        remove_cmd = ["terraform", self._chdir, "state", "rm", resource]
+                        result = subprocess.run(remove_cmd, text=True, capture_output=True)
+                        if result.returncode == 0:
+                            logging.info(f"Removed {resource} from state")
+                    except Exception as e:
+                        logging.debug(f"Could not remove {resource}: {e}")
+            else:
+                # Step 1: best-effort cleanup of Karpenter resources
+                try:
+                    self._run("destroy", "-auto-approve", *karpenter_targets)
+                except RuntimeError as exc:
+                    # Log and continue – the full destroy will take care of leftovers
+                    logging.warning(
+                        "targeted Karpenter destroy failed in workspace '%s': %s", ws, exc
+                    )
 
             # Step 2: remove everything else
             self._run("destroy", "-auto-approve")
