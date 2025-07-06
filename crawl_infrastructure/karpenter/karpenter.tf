@@ -56,7 +56,7 @@ resource "helm_release" "karpenter" {
   # Wait for cluster to be ready
   wait = true
   wait_for_jobs = true
-  timeout = 600
+  timeout = 1200  # Increased to 20 minutes
 
   set {
     name  = "settings.clusterName"

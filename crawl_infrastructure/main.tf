@@ -32,6 +32,32 @@ module "cluster" {
   codebuild_role_name = var.codebuild_role_name
 }
 
+# Wait for cluster to be ready before installing Karpenter
+resource "null_resource" "wait_for_cluster" {
+  depends_on = [module.cluster]
+  
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for EKS cluster to be ready..."
+      aws eks wait cluster-active --name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]}
+      
+      echo "Waiting for node group to be active..."
+      for i in {1..60}; do
+        READY_NODES=$(aws eks describe-nodegroup --cluster-name ${module.cluster.cluster_name} --nodegroup-name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]} --query 'nodegroup.status' --output text 2>/dev/null || echo "CREATING")
+        if [ "$READY_NODES" = "ACTIVE" ]; then
+          echo "Node group is active"
+          break
+        fi
+        echo "Node group status: $READY_NODES, waiting..."
+        sleep 10
+      done
+      
+      # Additional wait to ensure nodes are fully ready
+      sleep 30
+    EOT
+  }
+}
+
 module "karpenter" {
   source                  = "./karpenter"
   cluster_name            = module.cluster.cluster_name
@@ -51,6 +77,8 @@ module "karpenter" {
     instance-type = local.env[terraform.workspace][var.cluster_level]
     topology      = local.env[terraform.workspace]["azs"]
   }
+  
+  depends_on = [null_resource.wait_for_cluster]
 }
 
 resource "null_resource" "merge_kubeconfig" {
