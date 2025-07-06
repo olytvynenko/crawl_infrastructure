@@ -167,7 +167,7 @@ class ClusterManager:
         
         # Check for state lock error and handle it
         if result.returncode != 0:
-            if "Error acquiring the state lock" in result.stderr:
+            if "Error acquiring the state lock" in result.stderr or "Error releasing the state lock" in result.stderr:
                 lock_id = self._extract_lock_id(result.stderr)
                 if lock_id:
                     logging.warning(f"State lock detected (ID: {lock_id}). Attempting to unlock...")
@@ -185,7 +185,13 @@ class ClusterManager:
 
     def _extract_lock_id(self, error_text: str) -> Optional[str]:
         """Extract lock ID from terraform error message."""
+        # Try standard format first: "ID:        df4d41d1-..."
         match = re.search(r'ID:\s+([a-f0-9-]+)', error_text)
+        if match:
+            return match.group(1)
+        
+        # Try format from "Error releasing" message: 'lock ID "df4d41d1-..."'
+        match = re.search(r'lock ID\s+"([a-f0-9-]+)"', error_text)
         return match.group(1) if match else None
     
     def _force_unlock(self, lock_id: str):
