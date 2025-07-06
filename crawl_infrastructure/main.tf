@@ -41,7 +41,6 @@ module "karpenter" {
   oidc_provider_arn       = module.cluster.oidc_provider_arn
   iam_role_arn            = module.cluster.iam_role_arn
   iam_role_name           = module.cluster.iam_role_name
-  kms_key_id              = module.cluster.kms_key_id
   karpenter_chart_version = var.karpenter_chart_version
   providers = {
     helm = helm

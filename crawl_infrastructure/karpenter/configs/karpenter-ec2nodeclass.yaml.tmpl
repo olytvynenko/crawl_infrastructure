@@ -24,8 +24,6 @@ spec:
     ebs:
       volumeSize: 30Gi
       volumeType: gp3
-      encrypted: true
-      kmsKeyID: ${kms_key_id}
       deleteOnTermination: true
   tags:
     Name: ${cluster_name}-node

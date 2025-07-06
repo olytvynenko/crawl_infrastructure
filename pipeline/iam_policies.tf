@@ -162,7 +162,6 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "ec2:DescribeLaunchTemplates",
       "ec2:DescribeLaunchTemplateVersions",
       "ec2:DescribeVpcAttribute",
-      "ec2:EnableEbsEncryptionByDefault",
       "ec2:DescribePrefixLists",
       "ec2:DescribeSecurityGroupRules",
       "ec2:DescribeNetworkAcls"
@@ -376,25 +375,6 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
     resources = ["*"]
   }
 
-  # KMS permissions for EBS encryption
-  statement {
-    sid    = "KMSOperations"
-    effect = "Allow"
-    actions = [
-      "kms:CreateKey",
-      "kms:CreateAlias",
-      "kms:DeleteAlias",
-      "kms:DescribeKey",
-      "kms:EnableKey",
-      "kms:DisableKey",
-      "kms:PutKeyPolicy",
-      "kms:GetKeyPolicy",
-      "kms:TagResource",
-      "kms:UntagResource",
-      "kms:ListResourceTags"
-    ]
-    resources = ["*"]
-  }
 
   # Additional IAM permissions
   statement {

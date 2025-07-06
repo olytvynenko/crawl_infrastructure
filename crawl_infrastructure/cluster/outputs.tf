@@ -54,7 +54,3 @@ output "iam_role_name" {
   value = module.eks.eks_managed_node_groups["default"].iam_role_name
 }
 
-output "kms_key_id" {
-  description = "The ID of the KMS key used for EBS encryption"
-  value       = aws_kms_key.ebs.id
-}
