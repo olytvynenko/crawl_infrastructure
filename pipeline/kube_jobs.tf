@@ -70,7 +70,7 @@ resource "null_resource" "sync_kube_jobs" {
   }
 
   provisioner "local-exec" {
-    command = "echo 'Step 9: Force push to ${var.kube_jobs.branch}' && cd kube-jobs && git push --force-with-lease origin ${var.kube_jobs.branch}"
+    command = "echo 'Step 9: Force push to ${var.kube_jobs.branch}' && cd kube-jobs && git fetch origin && git push --force origin ${var.kube_jobs.branch}"
   }
 
   depends_on = [aws_codecommit_repository.kube_jobs]
