@@ -268,8 +268,7 @@ class ClusterManager:
                 status = self._check_cluster_status(cluster_name, region)
                 
                 if status == "ACTIVE":
-                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Skipping creation.")
-                    continue
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Proceeding with terraform apply to ensure all resources are created.")
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
