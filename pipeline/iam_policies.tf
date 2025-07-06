@@ -40,7 +40,8 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "dynamodb:DeleteItem",
       "dynamodb:DescribeTable",
       "dynamodb:DescribeContinuousBackups",
-      "dynamodb:DescribeTimeToLive"
+      "dynamodb:DescribeTimeToLive",
+      "dynamodb:ListTagsOfResource"
     ]
     resources = [
       "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/terraform-locks"
