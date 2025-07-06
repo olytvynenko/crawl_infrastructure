@@ -244,26 +244,36 @@ def send_notification(
         error_message: Error message if the stage failed
         admin_only: If True, send only to admin email from Parameter Store
     """
+    print(f"DEBUG: send_notification called with stage_name={stage_name}, admin_only={admin_only}")
+    
     # Get sender email
     SENDER = get_sender_email()
+    print(f"DEBUG: SENDER email: {SENDER}")
     if not SENDER:
         logger.error("Cannot send email: SENDER is not configured")
+        print("DEBUG: SENDER is not configured")
         return
     
     # Determine recipients based on admin_only flag
     if admin_only:
         admin_email = get_admin_email()
+        print(f"DEBUG: admin_email from Parameter Store: {admin_email}")
         if not admin_email:
             logger.error("Cannot send admin-only notification: admin email not configured")
+            print("DEBUG: admin email not configured")
             return
         recipients = [admin_email]
+        print(f"DEBUG: Sending admin-only notification to: {recipients}")
         logger.info(f"Sending admin-only notification to: {recipients}")
     else:
         regular_admins = get_regular_admins()
+        print(f"DEBUG: regular_admins from env var: {regular_admins}")
         if not regular_admins:
             logger.warning("No regular admin emails configured")
+            print("DEBUG: No regular admin emails configured")
             return
         recipients = regular_admins
+        print(f"DEBUG: Sending regular notification to: {recipients}")
         logger.info(f"Sending regular notification to: {recipients}")
     
     # Prepare email content
@@ -301,9 +311,13 @@ This is an automated notification from the crawl pipeline.
     
     # Send email
     try:
-        ses.send_email(
+        clean_recipients = [email.strip() for email in recipients if email.strip()]
+        print(f"DEBUG: About to send email from {SENDER} to {clean_recipients}")
+        print(f"DEBUG: Subject: {subject}")
+        
+        response = ses.send_email(
             Source=SENDER,
-            Destination={"ToAddresses": [email.strip() for email in recipients if email.strip()]},
+            Destination={"ToAddresses": clean_recipients},
             Message={
                 "Subject": {"Data": subject},
                 "Body": {
@@ -312,8 +326,10 @@ This is an automated notification from the crawl pipeline.
                 }
             }
         )
+        print(f"DEBUG: SES response: {response}")
         logger.info(f"Notification sent for stage {stage_name} with status {status}")
     except Exception as e:
+        print(f"DEBUG: SES send failed: {e}")
         logger.error(f"Failed to send email notification: {e}")
         raise
 
@@ -335,6 +351,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "admin_only": true/false  # Optional, defaults to false
     }
     """
+    print(f"DEBUG: Lambda handler started with event: {json.dumps(event)}")
     logger.info(f"Received event: {json.dumps(event)}")
     
     # Extract parameters
@@ -344,10 +361,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     error_message = event.get("error")
     admin_only = event.get("admin_only", False)
     
+    print(f"DEBUG: Extracted parameters - stage_name={stage_name}, status={status}, admin_only={admin_only}")
+    
     # Send notification
     try:
         logger.info(f"Lambda handler called with stage_name={stage_name}, status={status}, admin_only={admin_only}")
+        print(f"DEBUG: About to call send_notification")
         send_notification(stage_name, status, details, error_message, admin_only)
+        print(f"DEBUG: send_notification completed successfully")
         return {
             "statusCode": 200,
             "body": json.dumps({
@@ -356,6 +377,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             })
         }
     except Exception as e:
+        print(f"DEBUG: Exception occurred: {e}")
         logger.error(f"Error in lambda handler: {e}")
         return {
             "statusCode": 500,
