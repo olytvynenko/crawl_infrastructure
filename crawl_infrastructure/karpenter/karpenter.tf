@@ -52,6 +52,11 @@ resource "helm_release" "karpenter" {
   repository_password = var.repository_password
   chart               = "karpenter"
   version = var.karpenter_chart_version
+  
+  # Wait for cluster to be ready
+  wait = true
+  wait_for_jobs = true
+  timeout = 600
 
   set {
     name  = "settings.clusterName"
