@@ -8,7 +8,7 @@ import json
 import boto3
 import base64
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -188,7 +188,7 @@ def lambda_handler(event, context):
     return {
         'statusCode': 200,
         'body': json.dumps({
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'image_uri': image_uri,
             'results': results
         })
