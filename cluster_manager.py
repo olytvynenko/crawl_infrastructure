@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -162,9 +163,41 @@ class ClusterManager:
     def _run(self, *args: str):
         cmd = ["terraform", self._chdir, *args]
         logging.debug("$ %s", " ".join(cmd))
-        result = subprocess.run(cmd, text=True)
+        result = subprocess.run(cmd, text=True, capture_output=True)
+        
+        # Check for state lock error and handle it
         if result.returncode != 0:
+            if "Error acquiring the state lock" in result.stderr:
+                lock_id = self._extract_lock_id(result.stderr)
+                if lock_id:
+                    logging.warning(f"State lock detected (ID: {lock_id}). Attempting to unlock...")
+                    self._force_unlock(lock_id)
+                    # Retry the command after unlocking
+                    logging.info("Retrying command after unlocking state...")
+                    result = subprocess.run(cmd, text=True, capture_output=True)
+                    if result.returncode == 0:
+                        logging.info("Command succeeded after unlocking state")
+                        return
+            
+            # If still failing, raise the error
+            logging.error(f"Command failed: {result.stderr}")
             raise RuntimeError(f"terraform {args[0]} failed (exit {result.returncode})")
+
+    def _extract_lock_id(self, error_text: str) -> Optional[str]:
+        """Extract lock ID from terraform error message."""
+        match = re.search(r'ID:\s+([a-f0-9-]+)', error_text)
+        return match.group(1) if match else None
+    
+    def _force_unlock(self, lock_id: str):
+        """Force unlock terraform state."""
+        unlock_cmd = ["terraform", self._chdir, "force-unlock", "-force", lock_id]
+        logging.debug("$ %s", " ".join(unlock_cmd))
+        result = subprocess.run(unlock_cmd, text=True, capture_output=True)
+        if result.returncode == 0:
+            logging.info(f"Successfully unlocked state (ID: {lock_id})")
+        else:
+            logging.error(f"Failed to unlock state: {result.stderr}")
+            raise RuntimeError(f"Failed to unlock terraform state (ID: {lock_id})")
 
     def _workspace_select_or_create(self, ws: str):
         try:
