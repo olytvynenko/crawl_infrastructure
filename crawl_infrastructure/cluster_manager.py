@@ -270,13 +270,20 @@ class ClusterManager:
                 
                 if status == "ACTIVE":
                     logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}.")
-                    logging.info("Proceeding to create any missing resources...")
-                    # Continue with terraform apply to create missing resources
+                    logging.info("Destroying existing cluster before creating a new one...")
+                    # Destroy the existing cluster first
+                    self._workspace_select_or_create(ws)
+                    self.destroy([ws])
+                    logging.info(f"Waiting for cluster '{cluster_name}' to be fully deleted...")
+                    self._wait_for_cluster_deletion(cluster_name, region)
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
                 elif status is not None:
-                    logging.warning(f"Cluster '{cluster_name}' exists with unexpected status: {status}. Proceeding with terraform apply.")
+                    logging.warning(f"Cluster '{cluster_name}' exists with unexpected status: {status}. Will destroy and recreate.")
+                    self._workspace_select_or_create(ws)
+                    self.destroy([ws])
+                    self._wait_for_cluster_deletion(cluster_name, region)
                 
             except Exception as e:
                 logging.warning(f"Could not check cluster status for workspace '{ws}': {e}. Proceeding with terraform apply.")
@@ -284,38 +291,8 @@ class ClusterManager:
             # Always select workspace and apply
             self._workspace_select_or_create(ws)
             
-            # Update kubeconfig if cluster is active
-            if status == "ACTIVE":
-                try:
-                    cluster_config = self._get_cluster_config(ws)
-                    cluster_name = cluster_config['name']
-                    region = cluster_config.get('region', 'us-east-1')
-                    
-                    # Update kubeconfig to ensure authentication works
-                    logging.info(f"Updating kubeconfig for existing cluster '{cluster_name}'...")
-                    update_cmd = ["aws", "eks", "update-kubeconfig", "--name", cluster_name, "--region", region]
-                    result = subprocess.run(update_cmd, text=True, capture_output=True)
-                    if result.returncode != 0:
-                        logging.warning(f"Failed to update kubeconfig: {result.stderr}")
-                    else:
-                        logging.info("Kubeconfig updated successfully")
-                    
-                    # Refresh only the cluster module first to populate outputs
-                    logging.info("Refreshing terraform state for cluster module...")
-                    try:
-                        self._run("refresh", "-target=module.cluster")
-                        logging.info("Cluster module refresh completed successfully")
-                        
-                        # Now refresh the rest
-                        logging.info("Refreshing remaining terraform state...")
-                        self._run("refresh")
-                        logging.info("Full state refresh completed successfully")
-                    except Exception as e:
-                        logging.warning(f"State refresh failed: {e}. Continuing with apply...")
-                except Exception as e:
-                    logging.warning(f"Failed to handle existing cluster: {e}. Continuing with apply...")
-            
-            # Apply to create any missing resources
+            # Apply to create the cluster
+            logging.info(f"Creating cluster for workspace '{ws}'...")
             self._run("apply", "-auto-approve")
 
     def destroy(self, wss: Iterable[str]):
