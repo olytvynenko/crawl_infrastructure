@@ -35,6 +35,10 @@ module "eks" {
   create_cloudwatch_log_group    = false
   cluster_enabled_log_types = ["audit", "api", "authenticator", "controllerManager", "scheduler"]
   #   cluster_enabled_log_types      = []
+  
+  # Disable KMS encryption
+  create_kms_key = false
+  cluster_encryption_config = {}
 
   eks_managed_node_group_defaults = {
     ami_type = "AL2023_x86_64_STANDARD"

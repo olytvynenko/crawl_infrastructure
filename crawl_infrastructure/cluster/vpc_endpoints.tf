@@ -123,7 +123,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_endpoint_type   = "Interface"
   subnet_ids          = module.vpc.public_subnets
   security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
+  private_dns_enabled = false
   
   tags = {
     Name = "${local.cluster_name}-ecr-dkr-endpoint"
@@ -151,7 +151,7 @@ resource "aws_vpc_endpoint" "sts" {
   vpc_endpoint_type   = "Interface"
   subnet_ids          = module.vpc.public_subnets
   security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  private_dns_enabled = true
+  private_dns_enabled = false
   
   tags = {
     Name = "${local.cluster_name}-sts-endpoint"
