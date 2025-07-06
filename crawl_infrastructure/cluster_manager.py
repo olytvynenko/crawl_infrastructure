@@ -305,54 +305,105 @@ class ClusterManager:
            Errors in this step are logged but do **not** abort the run.
         2. Run a normal, unconditional `terraform destroy`.
         
-        If force=True, remove problematic resources from state before destroy.
+        If force=True, remove ALL resources from state and use AWS APIs directly.
         """
-        # Targets that frequently need explicit removal first
-        karpenter_targets: list[str] = [
-            "-target",
-            "module.karpenter.helm_release.karpenter",
-            "-target",
-            "module.karpenter.kubectl_manifest.karpenter_nodepool",
-            "-target",
-            "module.karpenter.kubectl_manifest.karpenter_node_class",
-        ]
-
         for ws in wss:
             self._workspace_select_or_create(ws)
+            
+            # Get cluster info before destroy
+            try:
+                cluster_config = self._get_cluster_config(ws)
+                cluster_name = cluster_config['name']
+                region = cluster_config.get('region', 'us-east-1')
+            except Exception as e:
+                logging.warning(f"Could not get cluster config: {e}")
+                cluster_name = None
+                region = 'us-east-1'
 
-            # If force destroy, remove problematic resources from state
+            # If force destroy, be very aggressive
             if force:
-                logging.info("Force destroy enabled - removing Helm/kubectl resources from state")
-                resources_to_remove = [
-                    "module.karpenter.helm_release.karpenter",
-                    "module.karpenter.kubectl_manifest.karpenter_nodepool",
-                    "module.karpenter.kubectl_manifest.karpenter_node_class"
-                ]
-                for resource in resources_to_remove:
+                logging.info("FORCE DESTROY: Removing all Kubernetes-related resources from state")
+                
+                # Get all resources in state
+                list_cmd = ["terraform", self._chdir, "state", "list"]
+                result = subprocess.run(list_cmd, text=True, capture_output=True)
+                
+                if result.returncode == 0:
+                    all_resources = result.stdout.strip().split('\n')
+                    
+                    # Remove ALL helm, kubectl, and kubernetes resources
+                    for resource in all_resources:
+                        if any(x in resource for x in ['helm_release', 'kubectl_manifest', 'kubernetes_']):
+                            try:
+                                remove_cmd = ["terraform", self._chdir, "state", "rm", resource]
+                                rm_result = subprocess.run(remove_cmd, text=True, capture_output=True)
+                                if rm_result.returncode == 0:
+                                    logging.info(f"Removed {resource} from state")
+                            except Exception as e:
+                                logging.debug(f"Could not remove {resource}: {e}")
+                
+                # Force terminate all EC2 instances for this cluster
+                if cluster_name:
+                    logging.info(f"FORCE DESTROY: Terminating all EC2 instances for cluster {cluster_name}")
                     try:
-                        remove_cmd = ["terraform", self._chdir, "state", "rm", resource]
-                        result = subprocess.run(remove_cmd, text=True, capture_output=True)
-                        if result.returncode == 0:
-                            logging.info(f"Removed {resource} from state")
+                        ec2 = boto3.client('ec2', region_name=region)
+                        
+                        # Find all instances with cluster tags
+                        instances = ec2.describe_instances(
+                            Filters=[
+                                {'Name': 'tag:kubernetes.io/cluster/' + cluster_name, 'Values': ['owned']},
+                                {'Name': 'instance-state-name', 'Values': ['running', 'pending', 'stopping', 'stopped']}
+                            ]
+                        )
+                        
+                        instance_ids = []
+                        for reservation in instances['Reservations']:
+                            for instance in reservation['Instances']:
+                                instance_ids.append(instance['InstanceId'])
+                        
+                        if instance_ids:
+                            logging.info(f"Force terminating {len(instance_ids)} instances: {instance_ids}")
+                            ec2.terminate_instances(InstanceIds=instance_ids)
                     except Exception as e:
-                        logging.debug(f"Could not remove {resource}: {e}")
+                        logging.warning(f"Could not force terminate instances: {e}")
+                    
+                    # Delete node groups directly
+                    try:
+                        eks = boto3.client('eks', region_name=region)
+                        nodegroups = eks.list_nodegroups(clusterName=cluster_name).get('nodegroups', [])
+                        for ng in nodegroups:
+                            logging.info(f"Force deleting node group: {ng}")
+                            try:
+                                eks.delete_nodegroup(clusterName=cluster_name, nodegroupName=ng)
+                            except Exception as e:
+                                logging.debug(f"Could not delete node group {ng}: {e}")
+                    except Exception as e:
+                        logging.debug(f"Could not list/delete node groups: {e}")
             else:
-                # Step 1: best-effort cleanup of Karpenter resources
+                # Normal destroy - try Karpenter first
+                karpenter_targets = [
+                    "-target", "module.karpenter.helm_release.karpenter",
+                    "-target", "module.karpenter.kubectl_manifest.karpenter_nodepool",
+                    "-target", "module.karpenter.kubectl_manifest.karpenter_node_class",
+                ]
                 try:
                     self._run("destroy", "-auto-approve", *karpenter_targets)
                 except RuntimeError as exc:
-                    # Log and continue – the full destroy will take care of leftovers
-                    logging.warning(
-                        "targeted Karpenter destroy failed in workspace '%s': %s", ws, exc
-                    )
+                    logging.warning("targeted Karpenter destroy failed in workspace '%s': %s", ws, exc)
 
-            # Step 2: remove everything else
-            self._run("destroy", "-auto-approve")
+            # Always run terraform destroy with refresh=false to avoid auth issues
+            try:
+                self._run("destroy", "-auto-approve", "-refresh=false")
+            except RuntimeError as exc:
+                if force:
+                    logging.warning(f"Terraform destroy failed, but continuing with force cleanup: {exc}")
+                else:
+                    raise
 
-            # Step 3 – orphan ENI cleanup
+            # Always cleanup orphan ENIs
             try:
                 _delete_orphan_enis(tag_keys=_get_tag_keys())
-            except Exception as exc:  # never abort overall destroy
+            except Exception as exc:
                 logger.warning("Orphan-ENI cleanup failed: %s", exc)
 
 
