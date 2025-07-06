@@ -160,6 +160,24 @@ data "aws_iam_policy_document" "codebuild_crawler_runner" {
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/eks-*"
     ]
   }
+
+  # CodeCommit access for kube-jobs repository
+  statement {
+    sid    = "CodeCommitAccess"
+    effect = "Allow"
+    actions = [
+      "codecommit:GetBranch",
+      "codecommit:GetCommit",
+      "codecommit:GetRepository",
+      "codecommit:ListBranches",
+      "codecommit:ListRepositories",
+      "codecommit:BatchGetRepositories",
+      "codecommit:GitPull"
+    ]
+    resources = [
+      "arn:aws:codecommit:us-east-1:${data.aws_caller_identity.current.account_id}:kube-jobs"
+    ]
+  }
 }
 
 # Create the managed policy for crawler runner
