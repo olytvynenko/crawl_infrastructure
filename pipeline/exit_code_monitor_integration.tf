@@ -28,7 +28,7 @@ resource "aws_codebuild_project" "exit_code_monitor_build" {
 
     environment_variable {
       name  = "AWS_DEFAULT_REGION"
-      value = data.aws_region.current.name
+      value = data.aws_region.current.id
     }
 
     environment_variable {
@@ -38,7 +38,7 @@ resource "aws_codebuild_project" "exit_code_monitor_build" {
 
     environment_variable {
       name  = "ECR_REPOSITORY_URI"
-      value = data.aws_ecr_repository.crawler_arm.repository_uri
+      value = data.aws_ecr_repository.crawler_arm.repository_url
     }
   }
 
@@ -88,7 +88,7 @@ resource "aws_lambda_function" "deploy_exit_code_monitor" {
 
   environment {
     variables = {
-      ECR_REPOSITORY_URI = data.aws_ecr_repository.crawler_arm.repository_uri
+      ECR_REPOSITORY_URI = data.aws_ecr_repository.crawler_arm.repository_url
       IMAGE_TAG          = "exit-code-monitor-latest"
     }
   }
