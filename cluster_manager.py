@@ -261,6 +261,7 @@ class ClusterManager:
     def create(self, wss: Iterable[str]):
         for ws in wss:
             # Check if cluster already exists
+            status = None
             try:
                 cluster_config = self._get_cluster_config(ws)
                 cluster_name = cluster_config['name']
@@ -268,7 +269,16 @@ class ClusterManager:
                 status = self._check_cluster_status(cluster_name, region)
                 
                 if status == "ACTIVE":
-                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Proceeding with terraform apply to ensure all resources are created.")
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Running terraform refresh before apply to detect missing resources.")
+                    # Select workspace first
+                    self._workspace_select_or_create(ws)
+                    # Refresh state to detect any missing resources
+                    try:
+                        logging.info("Refreshing terraform state to detect missing resources...")
+                        self._run("refresh")
+                    except RuntimeError as e:
+                        logging.warning(f"Terraform refresh failed: {e}. Continuing with apply...")
+                    # Continue with apply below
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
@@ -279,8 +289,13 @@ class ClusterManager:
                 logging.warning(f"Could not check cluster status for workspace '{ws}': {e}. Proceeding with terraform apply.")
             
             # Proceed with terraform apply
-            self._workspace_select_or_create(ws)
-            self._run("apply", "-auto-approve")
+            if status != "ACTIVE":
+                # Normal case - just select workspace and apply
+                self._workspace_select_or_create(ws)
+            # For ACTIVE clusters, workspace was already selected above
+            
+            # Apply with explicit refresh to ensure missing resources are detected
+            self._run("apply", "-auto-approve", "-refresh=true")
 
     def destroy(self, wss: Iterable[str]):
         """Remove the selected workspaces.
