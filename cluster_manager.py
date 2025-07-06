@@ -21,10 +21,11 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 import boto3
 
 logger = logging.getLogger(__name__)
@@ -166,11 +167,51 @@ class ClusterManager:
             raise RuntimeError(f"terraform {args[0]} failed (exit {result.returncode})")
 
     def _workspace_select_or_create(self, ws: str):
-        if self._run("workspace", "select", ws) is None:
+        try:
+            self._run("workspace", "select", ws)
             logging.info("Selected workspace '%s'", ws)
-            return
-        logging.info("Workspace '%s' missing – creating", ws)
-        self._run("workspace", "new", ws)
+        except RuntimeError:
+            logging.info("Workspace '%s' missing – creating", ws)
+            self._run("workspace", "new", ws)
+
+    def _get_cluster_config(self, workspace: str) -> dict:
+        """Get cluster configuration from terraform.tfvars.json for the given workspace."""
+        tfvars_path = self.wd / "terraform.tfvars.json"
+        with open(tfvars_path) as f:
+            config = json.load(f)
+        
+        if workspace not in config.get("clusters", {}):
+            raise ParameterValidationError(f"Workspace '{workspace}' not found in terraform.tfvars.json")
+        
+        return config["clusters"][workspace]
+
+    def _check_cluster_status(self, cluster_name: str, region: str) -> Optional[str]:
+        """Check if EKS cluster exists and return its status."""
+        try:
+            eks_client = boto3.client('eks', region_name=region)
+            response = eks_client.describe_cluster(name=cluster_name)
+            return response['cluster']['status']
+        except Exception as e:
+            if 'ResourceNotFoundException' in str(type(e)):
+                return None
+            logging.error(f"Error checking cluster status: {e}")
+            return None
+
+    def _wait_for_cluster_deletion(self, cluster_name: str, region: str, max_wait: int = 600):
+        """Wait for cluster to be deleted (max 10 minutes)."""
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            status = self._check_cluster_status(cluster_name, region)
+            if status is None:
+                logging.info(f"Cluster '{cluster_name}' has been deleted")
+                return
+            elif status == "DELETING":
+                logging.info(f"Cluster '{cluster_name}' is still deleting, waiting...")
+                time.sleep(30)
+            else:
+                raise RuntimeError(f"Unexpected cluster status during deletion: {status}")
+        
+        raise RuntimeError(f"Timeout waiting for cluster '{cluster_name}' deletion")
 
     # ---------------- public actions ----------------------------------------
     def plan(self, wss: Iterable[str]):
@@ -180,6 +221,26 @@ class ClusterManager:
 
     def create(self, wss: Iterable[str]):
         for ws in wss:
+            # Check if cluster already exists
+            try:
+                cluster_config = self._get_cluster_config(ws)
+                cluster_name = cluster_config['name']
+                region = cluster_config.get('region', 'us-east-1')
+                status = self._check_cluster_status(cluster_name, region)
+                
+                if status == "ACTIVE":
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Skipping creation.")
+                    continue
+                elif status == "DELETING":
+                    logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
+                    self._wait_for_cluster_deletion(cluster_name, region)
+                elif status is not None:
+                    logging.warning(f"Cluster '{cluster_name}' exists with unexpected status: {status}. Proceeding with terraform apply.")
+                
+            except Exception as e:
+                logging.warning(f"Could not check cluster status for workspace '{ws}': {e}. Proceeding with terraform apply.")
+            
+            # Proceed with terraform apply
             self._workspace_select_or_create(ws)
             self._run("apply", "-auto-approve")
 
