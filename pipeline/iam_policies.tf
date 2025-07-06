@@ -161,7 +161,11 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "ec2:DescribeKeyPairs",
       "ec2:DescribeLaunchTemplates",
       "ec2:DescribeLaunchTemplateVersions",
-      "ec2:DescribeVpcAttribute"
+      "ec2:DescribeVpcAttribute",
+      "ec2:EnableEbsEncryptionByDefault",
+      "ec2:DescribePrefixLists",
+      "ec2:DescribeSecurityGroupRules",
+      "ec2:DescribeNetworkAcls"
     ]
     resources = ["*"]
   }
@@ -370,6 +374,42 @@ data "aws_iam_policy_document" "codebuild_cluster_manager" {
       "sts:GetServiceBearerToken"
     ]
     resources = ["*"]
+  }
+
+  # KMS permissions for EBS encryption
+  statement {
+    sid    = "KMSOperations"
+    effect = "Allow"
+    actions = [
+      "kms:CreateKey",
+      "kms:CreateAlias",
+      "kms:DeleteAlias",
+      "kms:DescribeKey",
+      "kms:EnableKey",
+      "kms:DisableKey",
+      "kms:PutKeyPolicy",
+      "kms:GetKeyPolicy",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:ListResourceTags"
+    ]
+    resources = ["*"]
+  }
+
+  # Additional IAM permissions
+  statement {
+    sid    = "IAMPolicyManagement"
+    effect = "Allow"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:DeletePolicy",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions"
+    ]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/*"
+    ]
   }
 
 }
