@@ -269,9 +269,9 @@ class ClusterManager:
                 status = self._check_cluster_status(cluster_name, region)
                 
                 if status == "ACTIVE":
-                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}. Proceeding with terraform apply.")
-                    # When cluster exists, skip targeted operations that require kubeconfig
-                    # Let terraform apply handle everything with proper provider initialization
+                    logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}.")
+                    logging.info("Proceeding to create any missing resources...")
+                    # Continue with terraform apply to create missing resources
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
@@ -281,14 +281,22 @@ class ClusterManager:
             except Exception as e:
                 logging.warning(f"Could not check cluster status for workspace '{ws}': {e}. Proceeding with terraform apply.")
             
-            # Proceed with terraform apply
-            if status != "ACTIVE":
-                # Normal case - just select workspace and apply
-                self._workspace_select_or_create(ws)
-            # For ACTIVE clusters, workspace was already selected above
+            # Always select workspace and apply
+            self._workspace_select_or_create(ws)
             
-            # Apply with explicit refresh to ensure missing resources are detected
-            self._run("apply", "-auto-approve", "-refresh=true")
+            # Import existing cluster if it's active
+            if status == "ACTIVE":
+                try:
+                    # Try to import the existing cluster into terraform state
+                    cluster_config = self._get_cluster_config(ws)
+                    cluster_name = cluster_config['name']
+                    logging.info(f"Importing existing cluster '{cluster_name}' into terraform state...")
+                    self._run("import", "module.cluster.aws_eks_cluster.this[0]", cluster_name)
+                except Exception as e:
+                    logging.warning(f"Failed to import cluster into terraform state: {e}. Continuing with apply...")
+            
+            # Apply to create any missing resources
+            self._run("apply", "-auto-approve")
 
     def destroy(self, wss: Iterable[str]):
         """Remove the selected workspaces.
