@@ -333,14 +333,6 @@ locals {
           ]
         },
         ResultPath = null,
-        Retry = [
-          {
-            ErrorEquals = ["States.TaskFailed"],
-            IntervalSeconds = 30,
-            MaxAttempts     = 3,
-            BackoffRate     = 2.0
-          }
-        ],
         Catch = [
           {
             ErrorEquals = ["States.ALL"],
