@@ -76,26 +76,29 @@ resource "aws_codebuild_project" "exit_code_monitor_build" {
   }
 }
 
+# Create ZIP archive for Lambda function
+data "archive_file" "deploy_exit_code_monitor_zip" {
+  type        = "zip"
+  source_file = "${path.module}/lambdas/deploy_exit_code_monitor/deploy_exit_code_monitor.py"
+  output_path = "${path.module}/lambdas/deploy_exit_code_monitor/deploy_exit_code_monitor.zip"
+}
+
 # Lambda function to deploy exit code monitor to EKS clusters
 resource "aws_lambda_function" "deploy_exit_code_monitor" {
-  filename      = "${path.module}/lambdas/deploy_exit_code_monitor.zip"
-  function_name = "deploy-exit-code-monitor"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "deploy_exit_code_monitor.lambda_handler"
-  runtime       = "python3.11"
-  timeout       = 300
-  memory_size   = 512
+  filename         = data.archive_file.deploy_exit_code_monitor_zip.output_path
+  source_code_hash = data.archive_file.deploy_exit_code_monitor_zip.output_base64sha256
+  function_name    = "deploy-exit-code-monitor"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "deploy_exit_code_monitor.lambda_handler"
+  runtime          = "python3.11"
+  timeout          = 300
+  memory_size      = 512
 
   environment {
     variables = {
       ECR_REPOSITORY_URI = data.aws_ecr_repository.crawler_arm.repository_url
       IMAGE_TAG          = "exit-code-monitor-latest"
     }
-  }
-
-  vpc_config {
-    subnet_ids         = var.lambda_subnet_ids
-    security_group_ids = var.lambda_security_group_ids
   }
 }
 
