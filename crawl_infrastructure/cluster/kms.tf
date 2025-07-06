@@ -51,10 +51,10 @@ resource "aws_kms_key_policy" "ebs" {
         Resource = "*"
       },
       {
-        Sid    = "Allow Karpenter nodes to use the key"
+        Sid    = "Allow EC2 instances to use the key"
         Effect = "Allow"
         Principal = {
-          AWS = module.karpenter.node_instance_profile_arn
+          Service = "ec2.amazonaws.com"
         }
         Action = [
           "kms:Decrypt",
