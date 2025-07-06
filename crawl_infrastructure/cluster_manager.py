@@ -160,28 +160,56 @@ class ClusterManager:
         logging.debug("Terraform chdir flag: %s", self._chdir)
 
     # ---------------- internal runners --------------------------------------
-    def _run(self, *args: str):
+    def _run(self, *args: str, stream_output: bool = False):
         cmd = ["terraform", self._chdir, *args]
         logging.debug("$ %s", " ".join(cmd))
-        result = subprocess.run(cmd, text=True, capture_output=True)
         
-        # Check for state lock error and handle it
-        if result.returncode != 0:
-            if "Error acquiring the state lock" in result.stderr or "Error releasing the state lock" in result.stderr:
-                lock_id = self._extract_lock_id(result.stderr)
-                if lock_id:
-                    logging.warning(f"State lock detected (ID: {lock_id}). Attempting to unlock...")
-                    self._force_unlock(lock_id)
-                    # Retry the command after unlocking
-                    logging.info("Retrying command after unlocking state...")
-                    result = subprocess.run(cmd, text=True, capture_output=True)
-                    if result.returncode == 0:
-                        logging.info("Command succeeded after unlocking state")
-                        return
+        if stream_output:
+            # Stream output in real-time for long-running operations
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                                     text=True, bufsize=1, universal_newlines=True)
             
-            # If still failing, raise the error
-            logging.error(f"Command failed: {result.stderr}")
-            raise RuntimeError(f"terraform {args[0]} failed (exit {result.returncode})")
+            output_lines = []
+            for line in process.stdout:
+                print(line, end='')  # Print to stdout for real-time visibility
+                output_lines.append(line)
+            
+            process.wait()
+            output = ''.join(output_lines)
+            
+            if process.returncode != 0:
+                # Check for state lock error
+                if "Error acquiring the state lock" in output or "Error releasing the state lock" in output:
+                    lock_id = self._extract_lock_id(output)
+                    if lock_id:
+                        logging.warning(f"State lock detected (ID: {lock_id}). Attempting to unlock...")
+                        self._force_unlock(lock_id)
+                        # Retry with streaming
+                        logging.info("Retrying command after unlocking state...")
+                        return self._run(*args, stream_output=stream_output)
+                
+                logging.error(f"Command failed with exit code {process.returncode}")
+                raise RuntimeError(f"terraform {args[0]} failed (exit {process.returncode})")
+        else:
+            # Original behavior for quick commands
+            result = subprocess.run(cmd, text=True, capture_output=True)
+            
+            if result.returncode != 0:
+                if "Error acquiring the state lock" in result.stderr or "Error releasing the state lock" in result.stderr:
+                    lock_id = self._extract_lock_id(result.stderr)
+                    if lock_id:
+                        logging.warning(f"State lock detected (ID: {lock_id}). Attempting to unlock...")
+                        self._force_unlock(lock_id)
+                        # Retry the command after unlocking
+                        logging.info("Retrying command after unlocking state...")
+                        result = subprocess.run(cmd, text=True, capture_output=True)
+                        if result.returncode == 0:
+                            logging.info("Command succeeded after unlocking state")
+                            return
+                
+                # If still failing, raise the error
+                logging.error(f"Command failed: {result.stderr}")
+                raise RuntimeError(f"terraform {args[0]} failed (exit {result.returncode})")
 
     def _extract_lock_id(self, error_text: str) -> Optional[str]:
         """Extract lock ID from terraform error message."""
@@ -256,7 +284,7 @@ class ClusterManager:
     def plan(self, wss: Iterable[str]):
         for ws in wss:
             self._workspace_select_or_create(ws)
-            self._run("plan")
+            self._run("plan", stream_output=True)
 
     def create(self, wss: Iterable[str]):
         for ws in wss:
@@ -291,9 +319,29 @@ class ClusterManager:
             # Always select workspace and apply
             self._workspace_select_or_create(ws)
             
-            # Apply to create the cluster
+            # Apply in stages to avoid timeouts
             logging.info(f"Creating cluster for workspace '{ws}'...")
-            self._run("apply", "-auto-approve")
+            
+            # Stage 1: Create the EKS cluster and node groups
+            logging.info("Stage 1: Creating EKS cluster and node groups...")
+            cluster_targets = [
+                "-target", "module.cluster",
+                "-target", "null_resource.wait_for_cluster"
+            ]
+            self._run("apply", "-auto-approve", *cluster_targets, stream_output=True)
+            
+            # Stage 2: Install Karpenter
+            logging.info("Stage 2: Installing Karpenter...")
+            try:
+                self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+            except RuntimeError as e:
+                logging.error(f"Karpenter installation failed: {e}")
+                # Continue anyway - cluster is still usable without Karpenter
+                logging.warning("Continuing without Karpenter - cluster will not have autoscaling")
+            
+            # Stage 3: Apply any remaining resources
+            logging.info("Stage 3: Applying remaining resources...")
+            self._run("apply", "-auto-approve", stream_output=True)
 
     def destroy(self, wss: Iterable[str], force: bool = False):
         """Remove the selected workspaces.
@@ -387,13 +435,13 @@ class ClusterManager:
                     "-target", "module.karpenter.kubectl_manifest.karpenter_node_class",
                 ]
                 try:
-                    self._run("destroy", "-auto-approve", *karpenter_targets)
+                    self._run("destroy", "-auto-approve", *karpenter_targets, stream_output=True)
                 except RuntimeError as exc:
                     logging.warning("targeted Karpenter destroy failed in workspace '%s': %s", ws, exc)
 
             # Always run terraform destroy with refresh=false to avoid auth issues
             try:
-                self._run("destroy", "-auto-approve", "-refresh=false")
+                self._run("destroy", "-auto-approve", "-refresh=false", stream_output=True)
             except RuntimeError as exc:
                 if force:
                     logging.warning(f"Terraform destroy failed, but continuing with force cleanup: {exc}")
@@ -411,7 +459,7 @@ class ClusterManager:
         for ws in wss:
             self._workspace_select_or_create(ws)
             self._update_level(level)
-            self._run("apply", "-auto-approve")
+            self._run("apply", "-auto-approve", stream_output=True)
 
     # ---------------- helpers ------------------------------------------------
     def _update_level(self, level: InstanceLevel):
