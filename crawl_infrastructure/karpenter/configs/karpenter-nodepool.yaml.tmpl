@@ -5,10 +5,6 @@ metadata:
 spec:
   template:
     spec:
-        disruption:
-          expireAfter: 10000s
-          consolidationPolicy: WhenEmpty
-          consolidateAfter: 10s
         nodeClassRef:
           group: karpenter.k8s.aws
           kind: EC2NodeClass
@@ -17,21 +13,12 @@ spec:
           - key: "karpenter.sh/capacity-type"
             operator: In
             values: ["spot"]
-          - key: karpenter.k8s.aws/instance-category
+          - key: "node.kubernetes.io/instance-type"
             operator: In
-            values: ["t", "c", "r", "m", "x"]
-          - key: karpenter.k8s.aws/instance-size
-            operator: In
-            values: ["small", "medium", "large", "xlarge"]
-        #  - key: "karpenter.k8s.aws/instance-memory"
-        #    operator: Lt
-        #    values: ["2500"]
-        #  - key: "node.kubernetes.io/instance-type"
-        #    operator: In
-        #    values: ["t4g.small","c7g.medium","c6gd.medium","c6g.medium","c6gn.medium","m7g.medium", "c7gd.medium", "m7gd.medium", "r6g.medium", "c7gn.medium", "r7g.medium", "m6g.medium", "r7gd.medium"]
+            values: ${jsonencode(instance-type)}
           - key: "kubernetes.io/arch"
             operator: In
-            values: ["arm64"]
+            values: ${jsonencode(architectures)}
           - key: kubernetes.io/os
             operator: In
             values: ["linux"]
