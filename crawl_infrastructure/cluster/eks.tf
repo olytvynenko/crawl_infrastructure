@@ -58,12 +58,12 @@ module "eks" {
         {
           key    = "CriticalAddonsOnly"
           value  = "true"
-          effect = "NO_SCHEDULE"
+          effect = "NoSchedule"
         },
         {
           key    = "CriticalAddonsOnly"
           value  = "true"
-          effect = "NO_EXECUTE"
+          effect = "NoExecute"
         }
       ]
       max_unavailable_percentage = 50

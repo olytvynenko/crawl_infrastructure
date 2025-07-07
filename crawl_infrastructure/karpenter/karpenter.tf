@@ -101,6 +101,12 @@ resource "helm_release" "karpenter" {
           operator = "Equal"
           value    = "true"
           effect   = "NoSchedule"
+        },
+        {
+          key      = "CriticalAddonsOnly"
+          operator = "Equal"
+          value    = "true"
+          effect   = "NoExecute"
         }
       ]
     })
