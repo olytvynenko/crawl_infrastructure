@@ -26,9 +26,8 @@ module "vpc" {
 # Simple cleanup to terminate orphaned EKS instances only
 resource "null_resource" "cleanup_orphaned_instances" {
   triggers = {
-    always = timestamp()
-    region = var.region
     cluster_name = local.cluster_name
+    region = var.region
   }
 
   provisioner "local-exec" {
