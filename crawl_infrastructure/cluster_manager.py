@@ -328,6 +328,44 @@ class ClusterManager:
             
             # Stage 2: Install Karpenter
             logging.info("Stage 2: Installing Karpenter...")
+            
+            # Debug: Test cluster connectivity first
+            logging.info("Testing cluster connectivity before Karpenter installation...")
+            try:
+                # Get cluster info from the workspace config
+                cluster_config = self._get_cluster_config(ws)
+                cluster_name = cluster_config['name']
+                region = cluster_config.get('region', 'us-east-1')
+                
+                test_cmd = [
+                    "aws", "eks", "get-token", 
+                    "--cluster-name", cluster_name, 
+                    "--region", region
+                ]
+                result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=30)
+                if result.returncode == 0:
+                    logging.info("Successfully generated EKS token")
+                else:
+                    logging.error(f"Failed to generate EKS token: {result.stderr}")
+                    
+                # Also test cluster describe
+                describe_cmd = [
+                    "aws", "eks", "describe-cluster",
+                    "--name", cluster_name,
+                    "--region", region,
+                    "--query", "cluster.endpoint"
+                ]
+                result = subprocess.run(describe_cmd, capture_output=True, text=True, timeout=30)
+                if result.returncode == 0:
+                    logging.info(f"Cluster endpoint: {result.stdout.strip()}")
+                else:
+                    logging.error(f"Failed to describe cluster: {result.stderr}")
+                    
+            except subprocess.TimeoutExpired:
+                logging.error("Timeout while testing cluster - this indicates connectivity issues")
+            except Exception as e:
+                logging.error(f"Error testing cluster connectivity: {e}")
+            
             self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
             
             # Stage 3: Apply any remaining resources
