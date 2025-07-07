@@ -79,6 +79,9 @@ module "eks" {
           }
         }
       }
+      
+      # Enable access entry for node authentication
+      enable_access_entry = true
     }
   }
 

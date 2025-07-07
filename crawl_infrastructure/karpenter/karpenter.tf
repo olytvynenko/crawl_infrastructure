@@ -4,7 +4,7 @@ module "karpenter" {
   version      = "~> 20.37"
   cluster_name = var.cluster_name
 
-  create_access_entry = false
+  create_access_entry = true
 
   irsa_oidc_provider_arn = var.oidc_provider_arn
 
