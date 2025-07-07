@@ -13,9 +13,12 @@ spec:
           - key: "karpenter.sh/capacity-type"
             operator: In
             values: ["spot"]
-          - key: "node.kubernetes.io/instance-type"
+          - key: karpenter.k8s.aws/instance-category
             operator: In
-            values: ${jsonencode(instance-type)}
+            values: ["t", "c", "r", "m", "x"]
+          - key: karpenter.k8s.aws/instance-size
+            operator: In
+            values: ["small", "medium", "large", "xlarge"]
           - key: "kubernetes.io/arch"
             operator: In
             values: ${jsonencode(architectures)}
