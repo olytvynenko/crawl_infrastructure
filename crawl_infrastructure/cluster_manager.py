@@ -324,11 +324,7 @@ class ClusterManager:
             
             # Stage 1: Create the EKS cluster and node groups
             logging.info("Stage 1: Creating EKS cluster and node groups...")
-            cluster_targets = [
-                "-target", "module.cluster",
-                "-target", "null_resource.wait_for_cluster"
-            ]
-            self._run("apply", "-auto-approve", *cluster_targets, stream_output=True)
+            self._run("apply", "-auto-approve", "-target", "module.cluster", stream_output=True)
             
             # Stage 2: Install Karpenter
             logging.info("Stage 2: Installing Karpenter...")

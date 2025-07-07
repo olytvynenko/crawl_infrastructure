@@ -32,47 +32,6 @@ module "cluster" {
   codebuild_role_name = var.codebuild_role_name
 }
 
-# Wait for cluster to be ready before installing Karpenter
-resource "null_resource" "wait_for_cluster" {
-  depends_on = [module.cluster]
-  
-  provisioner "local-exec" {
-    command = <<-EOT
-      echo "Waiting for EKS cluster to be ready..."
-      aws eks wait cluster-active --name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]}
-      
-      echo "Updating kubeconfig..."
-      aws eks update-kubeconfig --name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]}
-      
-      echo "Waiting for Kubernetes API to be responsive..."
-      for i in {1..60}; do
-        if kubectl get ns kube-system &>/dev/null; then
-          echo "Kubernetes API is responsive"
-          break
-        fi
-        echo "Waiting for Kubernetes API... ($i/60)"
-        sleep 5
-      done
-      
-      echo "Waiting for CoreDNS to be ready..."
-      kubectl wait --for=condition=available --timeout=300s deployment/coredns -n kube-system || true
-      
-      echo "Verifying cluster authentication..."
-      for i in {1..30}; do
-        if aws eks get-token --cluster-name ${module.cluster.cluster_name} --region ${local.env[terraform.workspace]["region"]} &>/dev/null; then
-          echo "Cluster authentication verified"
-          break
-        fi
-        echo "Waiting for authentication... ($i/30)"
-        sleep 2
-      done
-      
-      # Give the cluster a moment to stabilize
-      sleep 10
-    EOT
-  }
-}
-
 module "karpenter" {
   source                  = "./karpenter"
   cluster_name            = module.cluster.cluster_name
@@ -92,8 +51,6 @@ module "karpenter" {
     instance-type = local.env[terraform.workspace][var.cluster_level]
     topology      = local.env[terraform.workspace]["azs"]
   }
-  
-  depends_on = [null_resource.wait_for_cluster]
 }
 
 resource "null_resource" "merge_kubeconfig" {
