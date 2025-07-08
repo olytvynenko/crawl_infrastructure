@@ -44,9 +44,7 @@ module "karpenter" {
   providers = {
     helm = helm
   }
-  karpenter_provisioner = {
-    name          = "default"
-    architectures = ["arm64"]
+  karpenter_provisioner = merge(var.karpenter_provisioner, {
     instance-type = local.env[terraform.workspace][var.cluster_level]
     topology      = local.env[terraform.workspace]["azs"]
     taints = {
@@ -54,7 +52,7 @@ module "karpenter" {
       value  = "true"
       effect = "NoSchedule"
     }
-  }
+  })
 }
 
 resource "null_resource" "merge_kubeconfig" {
