@@ -357,12 +357,19 @@ class ClusterManager:
                 
                 if status == "ACTIVE":
                     logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}.")
-                    logging.info("Destroying existing cluster before creating a new one...")
-                    # Destroy the existing cluster first with force to handle auth issues
+                    logging.info("Cluster is healthy - will only recreate Karpenter resources...")
+                    # Select workspace but don't destroy the cluster
                     self._workspace_select_or_create(ws)
-                    self.destroy([ws], force=True)
-                    logging.info(f"Waiting for cluster '{cluster_name}' to be fully deleted...")
-                    self._wait_for_cluster_deletion(cluster_name, region)
+                    
+                    # Only destroy Karpenter resources
+                    logging.info("Destroying existing Karpenter resources...")
+                    try:
+                        self._run("destroy", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+                    except Exception as e:
+                        logging.warning(f"Failed to destroy Karpenter resources: {e}")
+                    
+                    # Continue with normal apply process which will recreate Karpenter
+                    logging.info("Proceeding to recreate Karpenter...")
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
