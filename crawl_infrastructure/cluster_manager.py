@@ -345,6 +345,38 @@ class ClusterManager:
             logging.error(f"Error handling access entry conflict: {e}")
             return False
 
+    def _cleanup_crawl_jobs(self):
+        """Delete any existing crawl jobs and their pods to prevent Karpenter conflicts."""
+        try:
+            # Use kubectl to delete crawl jobs
+            logging.info("Checking for existing crawl jobs...")
+            
+            # Delete all jobs with name 'crawl'
+            delete_job_cmd = ["kubectl", "delete", "job", "crawl", "--ignore-not-found=true"]
+            result = subprocess.run(delete_job_cmd, capture_output=True, text=True)
+            if result.returncode == 0 and "deleted" in result.stdout:
+                logging.info(f"Deleted crawl job: {result.stdout.strip()}")
+            
+            # Delete all pods from crawl jobs
+            delete_pods_cmd = ["kubectl", "delete", "pods", "-l", "job-name=crawl", "--ignore-not-found=true"]
+            result = subprocess.run(delete_pods_cmd, capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                pod_count = len([line for line in result.stdout.strip().split('\n') if 'deleted' in line])
+                if pod_count > 0:
+                    logging.info(f"Deleted {pod_count} crawl pods")
+            
+            # Also clean up any stuck NodeClaims
+            delete_nodeclaims_cmd = ["kubectl", "delete", "nodeclaims", "--all", "--ignore-not-found=true"]
+            result = subprocess.run(delete_nodeclaims_cmd, capture_output=True, text=True)
+            if result.returncode == 0 and "deleted" in result.stdout:
+                nodeclaim_count = len([line for line in result.stdout.strip().split('\n') if 'deleted' in line])
+                if nodeclaim_count > 0:
+                    logging.info(f"Deleted {nodeclaim_count} stuck NodeClaims")
+                    
+        except Exception as e:
+            logging.warning(f"Error during crawl job cleanup: {e}")
+            # Continue anyway - this is a best-effort cleanup
+
     def _cleanup_orphaned_karpenter_resources(self, cluster_name: str, region: str):
         """Clean up orphaned Karpenter resources from other VPCs.
         
@@ -466,6 +498,10 @@ class ClusterManager:
             
             # Stage 2: Install Karpenter
             logging.info("Stage 2: Installing Karpenter...")
+            
+            # Delete any existing crawl jobs to prevent node provisioning conflicts
+            logging.info("Cleaning up any existing crawl jobs...")
+            self._cleanup_crawl_jobs()
             
             # Clean up orphaned Karpenter resources from other VPCs
             logging.info("Checking for orphaned Karpenter resources...")
