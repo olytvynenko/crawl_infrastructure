@@ -12,7 +12,7 @@ spec:
     - tags:
         karpenter.sh/discovery: ${cluster_name}
   # Use Karpenter's dedicated role - this will be auto-discovered
-  # role: ${role_name}
+  # role: will be auto-discovered by Karpenter
   instanceStorePolicy: RAID0
   amiFamily: AL2023
   amiSelectorTerms:
