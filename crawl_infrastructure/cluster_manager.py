@@ -485,6 +485,51 @@ class ClusterManager:
         except Exception as e:
             logging.warning(f"Error during crawl job cleanup: {e}")
             # Continue anyway - this is a best-effort cleanup
+    
+    def _cleanup_karpenter_from_cluster(self):
+        """Clean up Karpenter resources from the cluster before reinstalling."""
+        try:
+            logging.info("Cleaning up Karpenter resources from cluster...")
+            
+            # Delete NodePools first (they have finalizers)
+            kubectl_cmds = [
+                ["kubectl", "delete", "nodepool", "--all", "--timeout=60s"],
+                ["kubectl", "delete", "ec2nodeclass", "--all", "--timeout=60s"],
+                ["kubectl", "delete", "deployment", "karpenter", "-n", "karpenter", "--ignore-not-found=true"],
+                ["kubectl", "delete", "service", "-n", "karpenter", "--all", "--ignore-not-found=true"],
+                ["kubectl", "delete", "configmap", "-n", "karpenter", "--all", "--ignore-not-found=true"],
+                ["kubectl", "delete", "secret", "-n", "karpenter", "--all", "--ignore-not-found=true"],
+                ["kubectl", "delete", "serviceaccount", "-n", "karpenter", "--all", "--ignore-not-found=true"],
+                ["kubectl", "delete", "role", "-n", "karpenter", "--all", "--ignore-not-found=true"],
+                ["kubectl", "delete", "rolebinding", "-n", "karpenter", "--all", "--ignore-not-found=true"],
+                ["kubectl", "delete", "clusterrole", "-l", "app.kubernetes.io/name=karpenter", "--ignore-not-found=true"],
+                ["kubectl", "delete", "clusterrolebinding", "-l", "app.kubernetes.io/name=karpenter", "--ignore-not-found=true"],
+                ["kubectl", "delete", "webhook", "-l", "app.kubernetes.io/name=karpenter", "--ignore-not-found=true"],
+                ["kubectl", "delete", "namespace", "karpenter", "--ignore-not-found=true", "--timeout=60s"]
+            ]
+            
+            for cmd in kubectl_cmds:
+                try:
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=70)
+                    if result.returncode == 0 and result.stdout.strip():
+                        logging.info(f"Deleted: {result.stdout.strip()}")
+                except subprocess.TimeoutExpired:
+                    logging.warning(f"Timeout running: {' '.join(cmd)}")
+                except Exception as e:
+                    logging.debug(f"Error running {cmd[2]}: {e}")
+            
+            # Remove Terraform state for Karpenter to ensure clean slate
+            try:
+                state_rm_cmd = ["terraform", self._chdir, "state", "rm", "module.karpenter"]
+                result = subprocess.run(state_rm_cmd, capture_output=True, text=True)
+                if result.returncode == 0:
+                    logging.info("Removed Karpenter module from Terraform state")
+            except Exception as e:
+                logging.debug(f"Could not remove Karpenter from state: {e}")
+                
+        except Exception as e:
+            logging.warning(f"Error during Karpenter cleanup: {e}")
+            # Continue anyway - we'll try to install fresh
 
     def _cleanup_orphaned_karpenter_resources(self, cluster_name: str, region: str):
         """Clean up orphaned Karpenter resources from other VPCs.
@@ -591,42 +636,21 @@ class ClusterManager:
                         self.destroy([ws], force=True)
                         self._wait_for_cluster_deletion(cluster_name, region)
                     else:
-                        logging.info("Cluster is healthy - checking if Karpenter needs to be installed...")
+                        logging.info("Cluster is healthy - will recreate Karpenter resources...")
                         # Select workspace but don't destroy the cluster
                         self._workspace_select_or_create(ws)
                         
-                        # Check if Karpenter is already deployed
-                        karpenter_deployed = False
-                        try:
-                            # Update kubeconfig first
-                            update_kubeconfig_cmd = [
-                                "aws", "eks", "update-kubeconfig",
-                                "--name", cluster_name,
-                                "--region", region
-                            ]
-                            subprocess.run(update_kubeconfig_cmd, capture_output=True, check=True)
-                            
-                            # Check if Karpenter deployment exists
-                            check_cmd = ["kubectl", "get", "deployment", "karpenter", "-n", "karpenter", "-o", "name"]
-                            result = subprocess.run(check_cmd, capture_output=True, text=True)
-                            if result.returncode == 0 and "deployment.apps/karpenter" in result.stdout:
-                                # Check if it's actually running
-                                status_cmd = ["kubectl", "get", "deployment", "karpenter", "-n", "karpenter", "-o", "jsonpath={.status.readyReplicas}"]
-                                status_result = subprocess.run(status_cmd, capture_output=True, text=True)
-                                if status_result.returncode == 0 and status_result.stdout.strip() and int(status_result.stdout.strip()) > 0:
-                                    karpenter_deployed = True
-                                    logging.info("Karpenter is already deployed and running")
-                        except Exception as e:
-                            logging.debug(f"Could not check Karpenter status: {e}")
+                        # Update kubeconfig first
+                        update_kubeconfig_cmd = [
+                            "aws", "eks", "update-kubeconfig",
+                            "--name", cluster_name,
+                            "--region", region
+                        ]
+                        subprocess.run(update_kubeconfig_cmd, capture_output=True)
                         
-                        if karpenter_deployed:
-                            logging.info("Skipping Karpenter installation as it's already running")
-                            # Skip to stage 3 - just apply remaining resources
-                            logging.info("Stage 3: Applying remaining resources...")
-                            self._run("apply", "-auto-approve", stream_output=True)
-                            continue  # Skip the rest and go to next workspace
-                        else:
-                            logging.info("Karpenter not found or not running, will install it")
+                        # Clean up existing Karpenter installation
+                        logging.info("Cleaning up existing Karpenter installation...")
+                        self._cleanup_karpenter_from_cluster()
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
