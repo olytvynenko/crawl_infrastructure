@@ -189,7 +189,14 @@ class ClusterManager:
                         return self._run(*args, stream_output=stream_output)
                 
                 logging.error(f"Command failed with exit code {process.returncode}")
-                raise RuntimeError(f"terraform {args[0]} failed (exit {process.returncode})")
+                # Include relevant error information in the exception
+                error_msg = f"terraform {args[0]} failed (exit {process.returncode})"
+                if "ResourceInUseException" in output:
+                    # Include the specific error for better handling
+                    error_lines = [line for line in output_lines if "Error:" in line or "ResourceInUseException" in line]
+                    if error_lines:
+                        error_msg += f" - {' '.join(error_lines[-5:])}"  # Last 5 error lines
+                raise RuntimeError(error_msg)
         else:
             # Original behavior for quick commands
             result = subprocess.run(cmd, text=True, capture_output=True)
@@ -286,6 +293,58 @@ class ClusterManager:
             self._workspace_select_or_create(ws)
             self._run("plan", stream_output=True)
 
+    def _handle_access_entry_conflict(self) -> bool:
+        """
+        Handle EKS access entry conflicts by attempting to import existing resources.
+        
+        Returns:
+            bool: True if conflict was resolved, False otherwise
+        """
+        try:
+            # Get the current workspace configuration
+            ws = self._workspace_current()
+            cluster_config = self._get_cluster_config(ws)
+            cluster_name = cluster_config['name']
+            region = cluster_config.get('region', 'us-east-1')
+            
+            # List existing access entries
+            eks_client = boto3.client('eks', region_name=region)
+            response = eks_client.list_access_entries(clusterName=cluster_name)
+            
+            # Look for node group access entries that might be conflicting
+            for entry_arn in response.get('accessEntries', []):
+                if 'eks-node-group' in entry_arn:
+                    logging.info(f"Found existing access entry: {entry_arn}")
+                    
+                    # Try to import it into terraform state
+                    resource_address = "module.karpenter.module.karpenter.aws_eks_access_entry.node[0]"
+                    import_id = f"{cluster_name}#{entry_arn}"
+                    
+                    try:
+                        logging.info(f"Attempting to import: {resource_address} with ID: {import_id}")
+                        self._run("import", resource_address, import_id)
+                        logging.info("Successfully imported existing access entry")
+                        return True
+                    except Exception as e:
+                        logging.warning(f"Failed to import access entry: {e}")
+                        # Try removing it instead
+                        try:
+                            logging.info("Attempting to delete conflicting access entry")
+                            eks_client.delete_access_entry(
+                                clusterName=cluster_name,
+                                principalArn=entry_arn
+                            )
+                            logging.info("Successfully deleted conflicting access entry")
+                            return True
+                        except Exception as e2:
+                            logging.error(f"Failed to delete access entry: {e2}")
+            
+            return False
+            
+        except Exception as e:
+            logging.error(f"Error handling access entry conflict: {e}")
+            return False
+
     def create(self, wss: Iterable[str]):
         for ws in wss:
             # Check if cluster already exists
@@ -366,7 +425,21 @@ class ClusterManager:
             except Exception as e:
                 logging.error(f"Error testing cluster connectivity: {e}")
             
-            self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+            # Try to apply Karpenter module with error handling for access entry conflicts
+            try:
+                self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+            except RuntimeError as e:
+                error_str = str(e)
+                # Check if this is an access entry conflict
+                if "ResourceInUseException" in error_str and "access entry" in error_str:
+                    logging.warning("EKS access entry conflict detected, attempting to resolve...")
+                    if self._handle_access_entry_conflict():
+                        logging.info("Resolved access entry conflict, retrying apply...")
+                        self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+                    else:
+                        raise
+                else:
+                    raise
             
             # Stage 3: Apply any remaining resources
             logging.info("Stage 3: Applying remaining resources...")
