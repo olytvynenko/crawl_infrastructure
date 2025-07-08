@@ -167,6 +167,17 @@ resource "kubectl_manifest" "karpenter_node_class" {
   ]
 }
 
+# Add EKS access entry for Karpenter nodes
+resource "aws_eks_access_entry" "karpenter_nodes" {
+  cluster_name  = var.cluster_name
+  principal_arn = module.karpenter.node_iam_role_arn
+  type          = "EC2_LINUX"
+  
+  depends_on = [
+    module.karpenter
+  ]
+}
+
 # Cleanup Karpenter resources before destroying
 resource "null_resource" "karpenter_cleanup" {
   triggers = {
