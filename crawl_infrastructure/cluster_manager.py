@@ -377,9 +377,30 @@ class ClusterManager:
                         self._run("destroy", "-auto-approve", "-target", "module.karpenter", stream_output=True)
                     except Exception as e:
                         logging.warning(f"Failed to destroy Karpenter resources: {e}")
-                        # If destroy fails, try to refresh state and continue
+                        
+                        # If Terraform destroy fails, manually clean up the Helm release
+                        logging.info("Attempting manual Helm cleanup...")
+                        helm_list = subprocess.run(
+                            ["helm", "list", "-n", "karpenter", "-o", "json"],
+                            capture_output=True, text=True
+                        )
+                        
+                        if helm_list.returncode == 0:
+                            try:
+                                releases = json.loads(helm_list.stdout)
+                                if any(r.get("name") == "karpenter" for r in releases):
+                                    logging.info("Found existing Karpenter Helm release, removing...")
+                                    subprocess.run(
+                                        ["helm", "uninstall", "karpenter", "-n", "karpenter"],
+                                        check=True
+                                    )
+                                    time.sleep(5)  # Give it time to clean up
+                            except Exception as helm_error:
+                                logging.warning(f"Failed to clean up Helm release: {helm_error}")
+                        
+                        # Remove from Terraform state if it exists
                         try:
-                            self._run("refresh", stream_output=True)
+                            self._run("state", "rm", "module.karpenter.helm_release.karpenter")
                         except:
                             pass
                     

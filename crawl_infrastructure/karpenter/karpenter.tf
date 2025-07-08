@@ -81,6 +81,11 @@ resource "helm_release" "karpenter" {
   
   # Allow recreation when needed
   force_update = true
+  
+  # Handle existing releases
+  lifecycle {
+    create_before_destroy = false
+  }
 
   set {
     name  = "settings.clusterName"
