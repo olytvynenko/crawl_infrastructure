@@ -345,6 +345,67 @@ class ClusterManager:
             logging.error(f"Error handling access entry conflict: {e}")
             return False
 
+    def _cleanup_orphaned_karpenter_resources(self, cluster_name: str, region: str):
+        """Clean up orphaned Karpenter resources from other VPCs.
+        
+        This handles cases where previous cluster deployments left behind
+        resources with Karpenter discovery tags that would interfere with
+        the new deployment.
+        """
+        try:
+            ec2 = boto3.client('ec2', region_name=region)
+            
+            # Get the current cluster's VPC ID
+            eks = boto3.client('eks', region_name=region)
+            cluster_info = eks.describe_cluster(name=cluster_name)
+            current_vpc_id = cluster_info['cluster']['resourcesVpcConfig']['vpcId']
+            logging.info(f"Current cluster VPC: {current_vpc_id}")
+            
+            # Find all security groups with Karpenter discovery tag for this cluster
+            karpenter_tag = f"karpenter.sh/discovery"
+            sg_response = ec2.describe_security_groups(
+                Filters=[
+                    {'Name': f'tag:{karpenter_tag}', 'Values': [cluster_name]}
+                ]
+            )
+            
+            # Remove tags from security groups in other VPCs
+            for sg in sg_response['SecurityGroups']:
+                if sg['VpcId'] != current_vpc_id:
+                    logging.info(f"Removing Karpenter tag from security group {sg['GroupId']} in VPC {sg['VpcId']}")
+                    try:
+                        ec2.delete_tags(
+                            Resources=[sg['GroupId']],
+                            Tags=[{'Key': karpenter_tag, 'Value': cluster_name}]
+                        )
+                    except Exception as e:
+                        logging.warning(f"Failed to remove tag from {sg['GroupId']}: {e}")
+            
+            # Find all subnets with Karpenter discovery tag for this cluster
+            subnet_response = ec2.describe_subnets(
+                Filters=[
+                    {'Name': f'tag:{karpenter_tag}', 'Values': [cluster_name]}
+                ]
+            )
+            
+            # Remove tags from subnets in other VPCs
+            for subnet in subnet_response['Subnets']:
+                if subnet['VpcId'] != current_vpc_id:
+                    logging.info(f"Removing Karpenter tag from subnet {subnet['SubnetId']} in VPC {subnet['VpcId']}")
+                    try:
+                        ec2.delete_tags(
+                            Resources=[subnet['SubnetId']],
+                            Tags=[{'Key': karpenter_tag, 'Value': cluster_name}]
+                        )
+                    except Exception as e:
+                        logging.warning(f"Failed to remove tag from {subnet['SubnetId']}: {e}")
+                        
+            logging.info("Completed cleanup of orphaned Karpenter resources")
+            
+        except Exception as e:
+            logging.warning(f"Error during orphaned resource cleanup: {e}")
+            # Continue anyway - this is a best-effort cleanup
+
     def create(self, wss: Iterable[str]):
         for ws in wss:
             # Check if cluster already exists
@@ -405,6 +466,10 @@ class ClusterManager:
             
             # Stage 2: Install Karpenter
             logging.info("Stage 2: Installing Karpenter...")
+            
+            # Clean up orphaned Karpenter resources from other VPCs
+            logging.info("Checking for orphaned Karpenter resources...")
+            self._cleanup_orphaned_karpenter_resources(cluster_name, region)
             
             # Debug: Test cluster connectivity first
             logging.info("Testing cluster connectivity before Karpenter installation...")
