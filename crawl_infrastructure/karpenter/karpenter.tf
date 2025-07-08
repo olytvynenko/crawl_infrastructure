@@ -160,7 +160,7 @@ resource "kubectl_manifest" "karpenter_nodepool" {
 resource "kubectl_manifest" "karpenter_node_class" {
   yaml_body = templatefile("${path.module}/configs/karpenter-ec2nodeclass.yaml.tmpl", {
     cluster_name = var.cluster_name
-    # Removed role_name - Karpenter auto-discovers its own role
+    instance_profile_name = module.karpenter.instance_profile_name
   })
   depends_on = [
     helm_release.karpenter

@@ -11,8 +11,8 @@ spec:
   securityGroupSelectorTerms:
     - tags:
         karpenter.sh/discovery: ${cluster_name}
-  # Use Karpenter's dedicated role - this will be auto-discovered
-  # role: will be auto-discovered by Karpenter
+  # Use the instance profile created by Karpenter module
+  instanceProfile: ${instance_profile_name}
   instanceStorePolicy: RAID0
   amiFamily: AL2023
   amiSelectorTerms:
