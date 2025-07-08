@@ -116,8 +116,8 @@ variable "karpenter_provisioner" {
   type = object({
     name          = string
     architectures = list(string)
-    instance-type = list(string)
-    topology      = list(string)
+    instance-type = optional(list(string))
+    topology      = optional(list(string))
     labels        = optional(map(string))
     taints = optional(object({
       key    = string
