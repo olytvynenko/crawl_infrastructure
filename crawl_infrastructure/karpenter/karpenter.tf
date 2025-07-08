@@ -144,7 +144,7 @@ resource "kubectl_manifest" "karpenter_nodepool" {
     topology      = var.karpenter_provisioner.topology
     taints        = var.karpenter_provisioner.taints
     labels        = var.karpenter_provisioner.labels
-    role_name     = var.iam_role_name
+    # Removed role_name - not used in template
   })
   depends_on = [
     helm_release.karpenter
@@ -154,7 +154,7 @@ resource "kubectl_manifest" "karpenter_nodepool" {
 resource "kubectl_manifest" "karpenter_node_class" {
   yaml_body = templatefile("${path.module}/configs/karpenter-ec2nodeclass.yaml.tmpl", {
     cluster_name = var.cluster_name
-    role_name    = var.iam_role_name
+    # Removed role_name - Karpenter auto-discovers its own role
   })
   depends_on = [
     helm_release.karpenter

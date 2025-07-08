@@ -18,11 +18,8 @@ locals {
 ###############################################################################
 # EKS Access Entry + Policy Association
 ###############################################################################
-# Import existing access entry if it exists
-import {
-  to = aws_eks_access_entry.console_user
-  id = "${module.cluster.cluster_name}:arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.eks_admin_username}"
-}
+# Note: If this resource already exists, you may need to import it manually:
+# terraform import aws_eks_access_entry.console_user "cluster-name:arn:aws:iam::account-id:user/username"
 
 resource "aws_eks_access_entry" "console_user" {
   cluster_name  = module.cluster.cluster_name

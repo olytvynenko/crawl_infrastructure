@@ -10,13 +10,7 @@ variable "oidc_provider_arn" {
   type = string
 }
 
-variable "iam_role_arn" {
-  type = string
-}
-
-variable "iam_role_name" {
-  type = string
-}
+# Removed iam_role_arn and iam_role_name - Karpenter creates its own role
 
 variable "repository_username" {
   type = string

@@ -39,8 +39,7 @@ module "karpenter" {
   repository_username     = data.aws_ecrpublic_authorization_token.token.user_name
   repository_password     = data.aws_ecrpublic_authorization_token.token.password
   oidc_provider_arn       = module.cluster.oidc_provider_arn
-  iam_role_arn            = module.cluster.iam_role_arn
-  iam_role_name           = module.cluster.iam_role_name
+  # Removed iam_role_arn and iam_role_name - Karpenter creates its own
   karpenter_chart_version = var.karpenter_chart_version
   providers = {
     helm = helm
