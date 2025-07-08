@@ -49,6 +49,11 @@ module "karpenter" {
     architectures = ["arm64"]
     instance-type = local.env[terraform.workspace][var.cluster_level]
     topology      = local.env[terraform.workspace]["azs"]
+    taints = {
+      key    = "CrawlJob"
+      value  = "true"
+      effect = "NoSchedule"
+    }
   }
 }
 
