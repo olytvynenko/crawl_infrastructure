@@ -377,35 +377,7 @@ class ClusterManager:
                         self._run("destroy", "-auto-approve", "-target", "module.karpenter", stream_output=True)
                     except Exception as e:
                         logging.warning(f"Failed to destroy Karpenter resources: {e}")
-                        
-                        # If Terraform destroy fails, manually clean up the Helm release (if helm is available)
-                        try:
-                            logging.info("Attempting manual Helm cleanup...")
-                            helm_list = subprocess.run(
-                                ["helm", "list", "-n", "karpenter", "-o", "json"],
-                                capture_output=True, text=True
-                            )
-                            
-                            if helm_list.returncode == 0:
-                                try:
-                                    releases = json.loads(helm_list.stdout)
-                                    if any(r.get("name") == "karpenter" for r in releases):
-                                        logging.info("Found existing Karpenter Helm release, removing...")
-                                        subprocess.run(
-                                            ["helm", "uninstall", "karpenter", "-n", "karpenter"],
-                                            check=True
-                                        )
-                                        time.sleep(5)  # Give it time to clean up
-                                except Exception as helm_error:
-                                    logging.warning(f"Failed to clean up Helm release: {helm_error}")
-                        except FileNotFoundError:
-                            logging.info("Helm CLI not found, cannot perform manual cleanup")
-                        
-                        # Remove from Terraform state if it exists
-                        try:
-                            self._run("state", "rm", "module.karpenter.helm_release.karpenter")
-                        except:
-                            pass
+                        # Continue anyway - the apply might handle it
                     
                     # Continue with normal apply process which will recreate Karpenter
                     logging.info("Proceeding to recreate Karpenter...")
@@ -470,31 +442,6 @@ class ClusterManager:
                 logging.error("Timeout while testing cluster - this indicates connectivity issues")
             except Exception as e:
                 logging.error(f"Error testing cluster connectivity: {e}")
-            
-            # Clean up any existing Helm release before applying (if helm is available)
-            try:
-                logging.info("Checking for existing Karpenter Helm release...")
-                helm_list = subprocess.run(
-                    ["helm", "list", "-n", "karpenter", "-o", "json"],
-                    capture_output=True, text=True
-                )
-                
-                if helm_list.returncode == 0:
-                    try:
-                        releases = json.loads(helm_list.stdout) if helm_list.stdout else []
-                        if any(r.get("name") == "karpenter" for r in releases):
-                            logging.info("Found existing Karpenter Helm release, removing it first...")
-                            subprocess.run(
-                                ["helm", "uninstall", "karpenter", "-n", "karpenter", "--wait"],
-                                check=True
-                            )
-                            time.sleep(10)  # Give it time to fully clean up
-                    except Exception as helm_error:
-                        logging.warning(f"Failed to clean up Helm release: {helm_error}")
-            except FileNotFoundError:
-                logging.info("Helm CLI not found, skipping manual cleanup (Terraform will handle it)")
-            except Exception as e:
-                logging.warning(f"Error checking for Helm releases: {e}")
             
             # Try to apply Karpenter module with error handling for access entry conflicts
             try:

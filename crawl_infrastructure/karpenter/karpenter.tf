@@ -60,13 +60,20 @@ resource "null_resource" "wait_for_oidc" {
   }
 }
 
+resource "kubernetes_namespace" "karpenter" {
+  metadata {
+    name = "karpenter"
+  }
+}
+
 resource "helm_release" "karpenter" {
   depends_on = [
     module.karpenter,
-    null_resource.wait_for_oidc
+    null_resource.wait_for_oidc,
+    kubernetes_namespace.karpenter
   ]
-  namespace           = "karpenter"
-  create_namespace    = true
+  namespace           = kubernetes_namespace.karpenter.metadata[0].name
+  create_namespace    = false  # We create it separately above
   name                = "karpenter"
   repository          = "oci://public.ecr.aws/karpenter"
   repository_username = var.repository_username
@@ -81,11 +88,8 @@ resource "helm_release" "karpenter" {
   
   # Allow recreation when needed
   force_update = true
-  
-  # Handle existing releases
-  lifecycle {
-    create_before_destroy = false
-  }
+  atomic = true  # Rollback on failure
+  cleanup_on_fail = true  # Clean up resources on failure
 
   set {
     name  = "settings.clusterName"
