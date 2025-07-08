@@ -591,30 +591,42 @@ class ClusterManager:
                         self.destroy([ws], force=True)
                         self._wait_for_cluster_deletion(cluster_name, region)
                     else:
-                        logging.info("Cluster is healthy - will only recreate Karpenter resources...")
+                        logging.info("Cluster is healthy - checking if Karpenter needs to be installed...")
                         # Select workspace but don't destroy the cluster
                         self._workspace_select_or_create(ws)
-                    
-                    # Only destroy Karpenter resources
-                    logging.info("Destroying existing Karpenter resources...")
-                    
-                    # Ensure kubeconfig is updated first
-                    update_kubeconfig_cmd = [
-                        "aws", "eks", "update-kubeconfig",
-                        "--name", cluster_name,
-                        "--region", region
-                    ]
-                    subprocess.run(update_kubeconfig_cmd, capture_output=True)
-                    
-                    try:
-                        # Let Terraform handle the destruction properly
-                        self._run("destroy", "-auto-approve", "-target", "module.karpenter", stream_output=True)
-                    except Exception as e:
-                        logging.warning(f"Failed to destroy Karpenter resources: {e}")
-                        # Continue anyway - the apply might handle it
-                    
-                    # Continue with normal apply process which will recreate Karpenter
-                    logging.info("Proceeding to recreate Karpenter...")
+                        
+                        # Check if Karpenter is already deployed
+                        karpenter_deployed = False
+                        try:
+                            # Update kubeconfig first
+                            update_kubeconfig_cmd = [
+                                "aws", "eks", "update-kubeconfig",
+                                "--name", cluster_name,
+                                "--region", region
+                            ]
+                            subprocess.run(update_kubeconfig_cmd, capture_output=True, check=True)
+                            
+                            # Check if Karpenter deployment exists
+                            check_cmd = ["kubectl", "get", "deployment", "karpenter", "-n", "karpenter", "-o", "name"]
+                            result = subprocess.run(check_cmd, capture_output=True, text=True)
+                            if result.returncode == 0 and "deployment.apps/karpenter" in result.stdout:
+                                # Check if it's actually running
+                                status_cmd = ["kubectl", "get", "deployment", "karpenter", "-n", "karpenter", "-o", "jsonpath={.status.readyReplicas}"]
+                                status_result = subprocess.run(status_cmd, capture_output=True, text=True)
+                                if status_result.returncode == 0 and status_result.stdout.strip() and int(status_result.stdout.strip()) > 0:
+                                    karpenter_deployed = True
+                                    logging.info("Karpenter is already deployed and running")
+                        except Exception as e:
+                            logging.debug(f"Could not check Karpenter status: {e}")
+                        
+                        if karpenter_deployed:
+                            logging.info("Skipping Karpenter installation as it's already running")
+                            # Skip to stage 3 - just apply remaining resources
+                            logging.info("Stage 3: Applying remaining resources...")
+                            self._run("apply", "-auto-approve", stream_output=True)
+                            continue  # Skip the rest and go to next workspace
+                        else:
+                            logging.info("Karpenter not found or not running, will install it")
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
