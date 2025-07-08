@@ -484,21 +484,23 @@ class ClusterManager:
             return False
 
     def _cleanup_crawl_jobs(self):
-        """Delete any existing crawl jobs and their pods to prevent Karpenter conflicts."""
+        """Delete ALL existing jobs and their pods to prevent Karpenter conflicts."""
         try:
-            # Use kubectl to delete crawl jobs
-            logging.info("Checking for existing crawl jobs...")
+            # Use kubectl to delete ALL jobs
+            logging.info("Checking for existing jobs...")
             
-            # Delete all jobs with name 'crawl'
-            delete_job_cmd = ["kubectl", "delete", "job", "crawl", "--ignore-not-found=true"]
+            # Delete ALL jobs in all namespaces
+            delete_job_cmd = ["kubectl", "delete", "jobs", "--all", "--all-namespaces", "--ignore-not-found=true"]
             result = subprocess.run(delete_job_cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode == 0 and "deleted" in result.stdout:
-                logging.info(f"Deleted crawl job: {result.stdout.strip()}")
+            if result.returncode == 0 and result.stdout.strip():
+                job_count = len([line for line in result.stdout.strip().split('\n') if 'deleted' in line])
+                if job_count > 0:
+                    logging.info(f"Deleted {job_count} jobs")
             elif result.returncode != 0:
-                logging.warning(f"Failed to delete crawl job: {result.stderr}")
+                logging.warning(f"Failed to delete jobs: {result.stderr}")
             
-            # Delete all pods from crawl jobs
-            delete_pods_cmd = ["kubectl", "delete", "pods", "-l", "job-name=crawl", "--ignore-not-found=true"]
+            # Delete all pods that belong to jobs
+            delete_pods_cmd = ["kubectl", "delete", "pods", "--all-namespaces", "--field-selector", "status.phase!=Running", "--ignore-not-found=true"]
             result = subprocess.run(delete_pods_cmd, capture_output=True, text=True, timeout=30)
             if result.returncode == 0 and result.stdout.strip():
                 pod_count = len([line for line in result.stdout.strip().split('\n') if 'deleted' in line])
@@ -701,8 +703,8 @@ class ClusterManager:
                         # Jump to Stage 2 - Install Karpenter
                         logging.info("Stage 2: Installing Karpenter...")
                         
-                        # Delete any existing crawl jobs to prevent node provisioning conflicts
-                        logging.info("Cleaning up any existing crawl jobs...")
+                        # Delete any existing jobs to prevent node provisioning conflicts
+                        logging.info("Cleaning up any existing jobs...")
                         self._cleanup_crawl_jobs()
                         
                         # Clean up orphaned Karpenter resources from other VPCs
