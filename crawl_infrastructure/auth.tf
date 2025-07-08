@@ -18,9 +18,20 @@ locals {
 ###############################################################################
 # EKS Access Entry + Policy Association
 ###############################################################################
+# Import existing access entry if it exists
+import {
+  to = aws_eks_access_entry.console_user
+  id = "${module.cluster.cluster_name}:arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.eks_admin_username}"
+}
+
 resource "aws_eks_access_entry" "console_user" {
   cluster_name  = module.cluster.cluster_name
   principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.eks_admin_username}"
+  
+  lifecycle {
+    # Prevent recreation if it already exists
+    create_before_destroy = false
+  }
 }
 
 resource "aws_eks_access_policy_association" "console_user_admin" {

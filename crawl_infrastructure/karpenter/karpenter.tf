@@ -4,21 +4,25 @@ module "karpenter" {
   version      = "~> 20.37"
   cluster_name = var.cluster_name
 
-  create_access_entry = true
+  # Don't create access entry - it conflicts with managed node group
+  create_access_entry = false
 
   irsa_oidc_provider_arn = var.oidc_provider_arn
 
   irsa_namespace_service_accounts = ["karpenter:karpenter"]
 
-  create_node_iam_role = false
+  # Create dedicated IAM role for Karpenter nodes
+  create_node_iam_role = true
 
-  node_iam_role_arn = var.iam_role_arn
+  # Don't reuse the managed node group role
+  # node_iam_role_arn = var.iam_role_arn
 
   enable_irsa = true
 
   create_instance_profile = true
 
-  create_pod_identity_association = true
+  # Remove pod identity association as it's not configured
+  create_pod_identity_association = false
 
   tags = {
     Environment = "dev"
@@ -42,8 +46,25 @@ module "karpenter" {
 #
 # }
 
+# Add null resource to ensure OIDC provider is ready
+resource "null_resource" "wait_for_oidc" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for OIDC provider to be ready..."
+      sleep 30
+    EOT
+  }
+  
+  triggers = {
+    oidc_provider_arn = var.oidc_provider_arn
+  }
+}
+
 resource "helm_release" "karpenter" {
-  depends_on = [module.karpenter]
+  depends_on = [
+    module.karpenter,
+    null_resource.wait_for_oidc
+  ]
   namespace           = "karpenter"
   create_namespace    = true
   name                = "karpenter"
@@ -100,13 +121,13 @@ resource "helm_release" "karpenter" {
           key      = "CriticalAddonsOnly"
           operator = "Equal"
           value    = "true"
-          effect   = "NoSchedule"
+          effect   = "NO_SCHEDULE"
         },
         {
           key      = "CriticalAddonsOnly"
           operator = "Equal"
           value    = "true"
-          effect   = "NoExecute"
+          effect   = "NO_EXECUTE"
         }
       ]
     })
@@ -140,28 +161,38 @@ resource "kubectl_manifest" "karpenter_node_class" {
   ]
 }
 
-# Keep your existing helm_release as is, but add this:
-# resource "null_resource" "karpenter_cleanup" {
-#
-#   provisioner "local-exec" {
-#     when    = destroy
-#     command = <<-EOT
-#       # Try to clean up Karpenter resources before Helm uninstall
-#       kubectl --ignore-not-found=true delete nodepools --all || true
-#       kubectl --ignore-not-found=true delete ec2nodeclass --all || true
-#       sleep 5
-#     EOT
-#     on_failure = continue
-#   }
-#
-#     # This ensures cleanup runs BEFORE cluster destruction
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-#
-#
-#   depends_on = [helm_release.karpenter]
-# }
+# Cleanup Karpenter resources before destroying
+resource "null_resource" "karpenter_cleanup" {
+  triggers = {
+    cluster_name = var.cluster_name
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      echo "Cleaning up Karpenter resources..."
+      # Update kubeconfig
+      aws eks update-kubeconfig --name ${var.cluster_name} --region ${data.aws_region.current.name} || true
+      
+      # Delete all nodepools and node classes
+      kubectl delete nodepools.karpenter.sh --all --timeout=60s || true
+      kubectl delete ec2nodeclasses.karpenter.k8s.aws --all --timeout=60s || true
+      
+      # Wait for nodes to be terminated
+      echo "Waiting for Karpenter nodes to terminate..."
+      sleep 30
+    EOT
+    on_failure = continue
+  }
+
+  depends_on = [
+    kubectl_manifest.karpenter_nodepool,
+    kubectl_manifest.karpenter_node_class
+  ]
+}
+
+# Data source to get current region
+data "aws_region" "current" {}
 
 
 output "karpenter_irsa_arn" {
@@ -178,4 +209,8 @@ output "karpenter_sqs_queue_name" {
 
 output "role_arn" {
   value = module.karpenter.node_iam_role_arn
+}
+
+output "karpenter_node_iam_role_name" {
+  value = module.karpenter.node_iam_role_name
 }

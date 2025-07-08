@@ -11,7 +11,9 @@ spec:
   securityGroupSelectorTerms:
     - tags:
         karpenter.sh/discovery: ${cluster_name}
-  role: ${role_name}
+  # Use Karpenter's dedicated role - this will be auto-discovered
+  # role: ${role_name}
+  instanceStorePolicy: RAID0
   amiFamily: AL2023
   amiSelectorTerms:
       - alias: al2023@latest # Amazon Linux 2023
