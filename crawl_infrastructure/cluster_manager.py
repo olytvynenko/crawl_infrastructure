@@ -281,6 +281,7 @@ class ClusterManager:
                 - auth_working: Whether authentication works
                 - nodes_ready: Whether nodes are in Ready state
                 - node_groups_healthy: Whether node groups are healthy
+                - core_pods_healthy: Whether core system pods are running
                 - errors: List of error messages
         """
         health = {
@@ -289,6 +290,7 @@ class ClusterManager:
             "auth_working": False,
             "nodes_ready": False,
             "node_groups_healthy": False,
+            "core_pods_healthy": False,
             "errors": []
         }
         
@@ -372,6 +374,33 @@ class ClusterManager:
                         all_ready = False
                         health["errors"].append(f"Node {node_name} is not Ready")
                 health["nodes_ready"] = all_ready
+                
+                # 6. Check core system pods
+                try:
+                    core_pods_cmd = ["kubectl", "--kubeconfig", "/tmp/health-check-kubeconfig", "get", "pods", "-n", "kube-system", "-o", "json"]
+                    pods_result = subprocess.run(core_pods_cmd, capture_output=True, text=True)
+                    if pods_result.returncode == 0:
+                        pods_data = json.loads(pods_result.stdout)
+                        core_components = {"coredns": False, "aws-node": False, "kube-proxy": False}
+                        
+                        for pod in pods_data.get('items', []):
+                            pod_name = pod['metadata']['name']
+                            pod_ready = all(c['status'] for c in pod.get('status', {}).get('conditions', []) if c['type'] == 'Ready')
+                            
+                            for component in core_components:
+                                if component in pod_name and pod_ready:
+                                    core_components[component] = True
+                        
+                        all_core_healthy = all(core_components.values())
+                        health["core_pods_healthy"] = all_core_healthy
+                        
+                        for component, is_healthy in core_components.items():
+                            if not is_healthy:
+                                health["errors"].append(f"Core component {component} is not healthy")
+                                
+                except Exception as e:
+                    logging.debug(f"Could not check core pods: {e}")
+                    
             else:
                 health["errors"].append(f"Failed to get nodes: {result.stderr}")
         except Exception as e:
@@ -889,6 +918,7 @@ class ClusterManager:
                 logging.info(f"Authentication: {'✓ Working' if health['auth_working'] else '✗ Failed'}")
                 logging.info(f"Node Groups: {'✓ Healthy' if health['node_groups_healthy'] else '✗ Issues detected'}")
                 logging.info(f"Nodes: {'✓ All Ready' if health['nodes_ready'] else '✗ Some not ready'}")
+                logging.info(f"Core Pods: {'✓ Healthy' if health['core_pods_healthy'] else '✗ Issues detected'}")
                 
                 if health['errors']:
                     logging.error("Issues found:")
