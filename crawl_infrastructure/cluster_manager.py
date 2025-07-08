@@ -493,8 +493,8 @@ class ClusterManager:
             
             # Delete NodePools first (they have finalizers)
             kubectl_cmds = [
-                ["kubectl", "delete", "nodepool", "--all", "--timeout=60s"],
-                ["kubectl", "delete", "ec2nodeclass", "--all", "--timeout=60s"],
+                ["kubectl", "delete", "nodepool", "--all", "--ignore-not-found=true", "--timeout=60s"],
+                ["kubectl", "delete", "ec2nodeclass", "--all", "--ignore-not-found=true", "--timeout=60s"],
                 ["kubectl", "delete", "deployment", "karpenter", "-n", "karpenter", "--ignore-not-found=true"],
                 ["kubectl", "delete", "service", "-n", "karpenter", "--all", "--ignore-not-found=true"],
                 ["kubectl", "delete", "configmap", "-n", "karpenter", "--all", "--ignore-not-found=true"],
