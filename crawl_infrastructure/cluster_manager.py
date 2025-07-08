@@ -5,7 +5,7 @@ cluster_manager.py – run Terraform inside ./crawl_infrastructure
 Configuration hierarchy
 -----------------------
 1. Environment variables
-   * ACTION    – create | plan | destroy | resize  (required)
+   * ACTION    – create | plan | destroy | resize | health_check  (required)
    * LEVEL     – inst4 | inst8 | inst16            (required for resize)
    * CLUSTERS  – comma-separated list (fallback only)
 
@@ -270,6 +270,115 @@ class ClusterManager:
                 return None
             logging.error(f"Error checking cluster status: {e}")
             return None
+    
+    def _check_cluster_health(self, cluster_name: str, region: str) -> dict:
+        """Perform comprehensive health checks on the EKS cluster.
+        
+        Returns:
+            dict: Health check results with keys:
+                - status: Cluster status (ACTIVE, etc.)
+                - api_accessible: Whether API server is accessible
+                - auth_working: Whether authentication works
+                - nodes_ready: Whether nodes are in Ready state
+                - node_groups_healthy: Whether node groups are healthy
+                - errors: List of error messages
+        """
+        health = {
+            "status": None,
+            "api_accessible": False,
+            "auth_working": False,
+            "nodes_ready": False,
+            "node_groups_healthy": False,
+            "errors": []
+        }
+        
+        # 1. Check cluster status
+        try:
+            eks_client = boto3.client('eks', region_name=region)
+            cluster_info = eks_client.describe_cluster(name=cluster_name)
+            health["status"] = cluster_info['cluster']['status']
+            
+            if health["status"] != "ACTIVE":
+                health["errors"].append(f"Cluster status is {health['status']}, not ACTIVE")
+                return health  # No point checking further if not active
+                
+        except Exception as e:
+            health["errors"].append(f"Failed to describe cluster: {e}")
+            return health
+        
+        # 2. Check API server connectivity
+        try:
+            endpoint = cluster_info['cluster']['endpoint']
+            # Test if we can reach the endpoint (using curl to avoid auth issues)
+            curl_cmd = ["curl", "-k", "--connect-timeout", "5", f"{endpoint}/healthz"]
+            result = subprocess.run(curl_cmd, capture_output=True, text=True)
+            if result.returncode == 0 and "ok" in result.stdout:
+                health["api_accessible"] = True
+            else:
+                health["errors"].append(f"API server not accessible: {result.stderr}")
+        except Exception as e:
+            health["errors"].append(f"Failed to test API connectivity: {e}")
+        
+        # 3. Check authentication
+        try:
+            token_cmd = ["aws", "eks", "get-token", "--cluster-name", cluster_name, "--region", region]
+            result = subprocess.run(token_cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                health["auth_working"] = True
+            else:
+                health["errors"].append(f"Failed to get auth token: {result.stderr}")
+        except subprocess.TimeoutExpired:
+            health["errors"].append("Timeout getting auth token")
+        except Exception as e:
+            health["errors"].append(f"Auth check failed: {e}")
+        
+        # 4. Check node groups
+        try:
+            nodegroups = eks_client.list_nodegroups(clusterName=cluster_name).get('nodegroups', [])
+            all_healthy = True
+            for ng_name in nodegroups:
+                ng_info = eks_client.describe_nodegroup(
+                    clusterName=cluster_name,
+                    nodegroupName=ng_name
+                )
+                ng_health = ng_info['nodegroup'].get('health', {})
+                if ng_health.get('issues'):
+                    all_healthy = False
+                    for issue in ng_health['issues']:
+                        health["errors"].append(f"Node group {ng_name}: {issue.get('message', 'Unknown issue')}")
+                        
+            health["node_groups_healthy"] = all_healthy
+        except Exception as e:
+            health["errors"].append(f"Failed to check node groups: {e}")
+        
+        # 5. Check nodes via kubectl (if kubeconfig is set up)
+        try:
+            # Update kubeconfig first
+            update_cmd = ["aws", "eks", "update-kubeconfig", "--name", cluster_name, "--region", region, "--kubeconfig", "/tmp/health-check-kubeconfig"]
+            subprocess.run(update_cmd, capture_output=True, check=True)
+            
+            # Check nodes
+            nodes_cmd = ["kubectl", "--kubeconfig", "/tmp/health-check-kubeconfig", "get", "nodes", "-o", "json"]
+            result = subprocess.run(nodes_cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                import json
+                nodes_data = json.loads(result.stdout)
+                all_ready = True
+                for node in nodes_data.get('items', []):
+                    node_name = node['metadata']['name']
+                    conditions = node.get('status', {}).get('conditions', [])
+                    ready = any(c['type'] == 'Ready' and c['status'] == 'True' for c in conditions)
+                    if not ready:
+                        all_ready = False
+                        health["errors"].append(f"Node {node_name} is not Ready")
+                health["nodes_ready"] = all_ready
+            else:
+                health["errors"].append(f"Failed to get nodes: {result.stderr}")
+        except Exception as e:
+            # kubectl check is optional - might not have kubeconfig
+            logging.debug(f"Skipping kubectl node check: {e}")
+        
+        return health
 
     def _wait_for_cluster_deletion(self, cluster_name: str, region: str, max_wait: int = 600):
         """Wait for cluster to be deleted (max 10 minutes)."""
@@ -450,9 +559,41 @@ class ClusterManager:
                 
                 if status == "ACTIVE":
                     logging.info(f"Cluster '{cluster_name}' already exists and is ACTIVE in region {region}.")
-                    logging.info("Cluster is healthy - will only recreate Karpenter resources...")
-                    # Select workspace but don't destroy the cluster
-                    self._workspace_select_or_create(ws)
+                    
+                    # Perform comprehensive health checks
+                    logging.info("Performing health checks on existing cluster...")
+                    health = self._check_cluster_health(cluster_name, region)
+                    
+                    # Log health check results
+                    logging.info(f"Health check results:")
+                    logging.info(f"  - Status: {health['status']}")
+                    logging.info(f"  - API Accessible: {health['api_accessible']}")
+                    logging.info(f"  - Authentication: {health['auth_working']}")
+                    logging.info(f"  - Node Groups: {'Healthy' if health['node_groups_healthy'] else 'Issues detected'}")
+                    logging.info(f"  - Nodes Ready: {health['nodes_ready']}")
+                    
+                    if health['errors']:
+                        logging.warning("Health check issues found:")
+                        for error in health['errors']:
+                            logging.warning(f"  - {error}")
+                    
+                    # Determine if cluster is healthy enough to proceed
+                    is_healthy = (
+                        health['status'] == 'ACTIVE' and
+                        health['api_accessible'] and
+                        health['auth_working'] and
+                        health['node_groups_healthy']
+                    )
+                    
+                    if not is_healthy:
+                        logging.error("Cluster health checks failed. Will destroy and recreate the cluster.")
+                        self._workspace_select_or_create(ws)
+                        self.destroy([ws], force=True)
+                        self._wait_for_cluster_deletion(cluster_name, region)
+                    else:
+                        logging.info("Cluster is healthy - will only recreate Karpenter resources...")
+                        # Select workspace but don't destroy the cluster
+                        self._workspace_select_or_create(ws)
                     
                     # Only destroy Karpenter resources
                     logging.info("Destroying existing Karpenter resources...")
@@ -681,6 +822,62 @@ class ClusterManager:
             self._workspace_select_or_create(ws)
             self._update_level(level)
             self._run("apply", "-auto-approve", stream_output=True)
+    
+    def health_check(self, wss: Iterable[str]):
+        """Perform health checks on specified clusters."""
+        overall_healthy = True
+        
+        for ws in wss:
+            try:
+                cluster_config = self._get_cluster_config(ws)
+                cluster_name = cluster_config['name']
+                region = cluster_config.get('region', 'us-east-1')
+                
+                logging.info(f"\n{'='*60}")
+                logging.info(f"Health check for cluster: {cluster_name} ({region})")
+                logging.info(f"{'='*60}")
+                
+                # Check if cluster exists
+                status = self._check_cluster_status(cluster_name, region)
+                if status is None:
+                    logging.error(f"Cluster '{cluster_name}' does not exist")
+                    overall_healthy = False
+                    continue
+                
+                # Perform comprehensive health check
+                health = self._check_cluster_health(cluster_name, region)
+                
+                # Display results
+                logging.info(f"Status: {health['status']}")
+                logging.info(f"API Server: {'✓ Accessible' if health['api_accessible'] else '✗ Not accessible'}")
+                logging.info(f"Authentication: {'✓ Working' if health['auth_working'] else '✗ Failed'}")
+                logging.info(f"Node Groups: {'✓ Healthy' if health['node_groups_healthy'] else '✗ Issues detected'}")
+                logging.info(f"Nodes: {'✓ All Ready' if health['nodes_ready'] else '✗ Some not ready'}")
+                
+                if health['errors']:
+                    logging.error("Issues found:")
+                    for error in health['errors']:
+                        logging.error(f"  - {error}")
+                
+                # Determine overall health
+                is_healthy = (
+                    health['status'] == 'ACTIVE' and
+                    health['api_accessible'] and
+                    health['auth_working'] and
+                    health['node_groups_healthy']
+                )
+                
+                if is_healthy:
+                    logging.info(f"✓ Cluster '{cluster_name}' is HEALTHY")
+                else:
+                    logging.error(f"✗ Cluster '{cluster_name}' is UNHEALTHY")
+                    overall_healthy = False
+                    
+            except Exception as e:
+                logging.error(f"Failed to check health for workspace '{ws}': {e}")
+                overall_healthy = False
+        
+        return overall_healthy
 
     # ---------------- helpers ------------------------------------------------
     def _update_level(self, level: InstanceLevel):
@@ -719,6 +916,9 @@ def main():
     elif action == "resize":
         level = InstanceLevel.from_str(os.getenv("LEVEL", ""))
         mgr.resize(clusters, level)
+    elif action == "health" or action == "health_check":
+        healthy = mgr.health_check(clusters)
+        sys.exit(0 if healthy else 1)
     else:
         raise ParameterValidationError(f"unsupported ACTION '{action}'")
 
