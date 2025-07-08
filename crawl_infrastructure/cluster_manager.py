@@ -364,9 +364,23 @@ class ClusterManager:
                     # Only destroy Karpenter resources
                     logging.info("Destroying existing Karpenter resources...")
                     try:
+                        # First, try to uninstall Helm release directly
+                        logging.info("Uninstalling Karpenter Helm release...")
+                        helm_cmd = ["helm", "uninstall", "karpenter", "-n", "karpenter"]
+                        subprocess.run(helm_cmd, capture_output=True, text=True)
+                        
+                        # Then destroy Terraform resources
                         self._run("destroy", "-auto-approve", "-target", "module.karpenter", stream_output=True)
                     except Exception as e:
                         logging.warning(f"Failed to destroy Karpenter resources: {e}")
+                        
+                    # Ensure kubeconfig is updated
+                    update_kubeconfig_cmd = [
+                        "aws", "eks", "update-kubeconfig",
+                        "--name", cluster_name,
+                        "--region", region
+                    ]
+                    subprocess.run(update_kubeconfig_cmd, capture_output=True)
                     
                     # Continue with normal apply process which will recreate Karpenter
                     logging.info("Proceeding to recreate Karpenter...")
