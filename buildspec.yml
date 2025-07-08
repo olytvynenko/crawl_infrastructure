@@ -15,6 +15,10 @@ phases:
       - curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o tf.zip
       - unzip -q tf.zip && mv terraform /usr/local/bin/
       - terraform -version
+      - echo ">> install kubectl"
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - chmod +x kubectl && mv kubectl /usr/local/bin/
+      - kubectl version --client
       - echo ">> install Python deps"
       - pip install --no-cache-dir python-terraform
   pre_build:
