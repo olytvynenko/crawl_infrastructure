@@ -645,6 +645,7 @@ class ClusterManager:
                     logging.info(f"  - Authentication: {health['auth_working']}")
                     logging.info(f"  - Node Groups: {'Healthy' if health['node_groups_healthy'] else 'Issues detected'}")
                     logging.info(f"  - Nodes Ready: {health['nodes_ready']}")
+                    logging.info(f"  - Core Pods: {'Healthy' if health.get('core_pods_healthy', False) else 'Issues detected or not checked'}")
                     
                     if health['errors']:
                         logging.warning("Health check issues found:")
@@ -664,10 +665,14 @@ class ClusterManager:
                         self._workspace_select_or_create(ws)
                         self.destroy([ws], force=True)
                         self._wait_for_cluster_deletion(cluster_name, region)
+                        # After destroying unhealthy cluster, proceed with normal creation flow below
                     else:
-                        logging.info("Cluster is healthy - will recreate Karpenter resources...")
-                        # Select workspace but don't destroy the cluster
+                        logging.info("Cluster is healthy - proceeding with Karpenter deployment...")
+                        # Select workspace
                         self._workspace_select_or_create(ws)
+                        
+                        # Skip to Stage 2 directly since cluster is already healthy
+                        logging.info("Skipping Stage 1 (cluster creation) as cluster already exists and is healthy")
                         
                         # Update kubeconfig first
                         update_kubeconfig_cmd = [
@@ -680,6 +685,40 @@ class ClusterManager:
                         # Clean up existing Karpenter installation
                         logging.info("Cleaning up existing Karpenter installation...")
                         self._cleanup_karpenter_from_cluster()
+                        
+                        # Jump to Stage 2 - Install Karpenter
+                        logging.info("Stage 2: Installing Karpenter...")
+                        
+                        # Delete any existing crawl jobs to prevent node provisioning conflicts
+                        logging.info("Cleaning up any existing crawl jobs...")
+                        self._cleanup_crawl_jobs()
+                        
+                        # Clean up orphaned Karpenter resources from other VPCs
+                        logging.info("Checking for orphaned Karpenter resources...")
+                        self._cleanup_orphaned_karpenter_resources(cluster_name, region)
+                        
+                        # Apply Karpenter module
+                        try:
+                            self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+                        except RuntimeError as e:
+                            error_str = str(e)
+                            # Check if this is an access entry conflict
+                            if "ResourceInUseException" in error_str and "access entry" in error_str:
+                                logging.warning("EKS access entry conflict detected, attempting to resolve...")
+                                if self._handle_access_entry_conflict():
+                                    logging.info("Resolved access entry conflict, retrying apply...")
+                                    self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
+                                else:
+                                    raise
+                            else:
+                                raise
+                        
+                        # Stage 3: Apply any remaining resources
+                        logging.info("Stage 3: Applying remaining resources...")
+                        self._run("apply", "-auto-approve", stream_output=True)
+                        
+                        # Skip the rest of the create flow for this workspace
+                        continue
                 elif status == "DELETING":
                     logging.info(f"Cluster '{cluster_name}' is being deleted in region {region}. Waiting for deletion to complete...")
                     self._wait_for_cluster_deletion(cluster_name, region)
