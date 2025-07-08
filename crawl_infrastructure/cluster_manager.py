@@ -468,6 +468,26 @@ class ClusterManager:
             except Exception as e:
                 logging.error(f"Error testing cluster connectivity: {e}")
             
+            # Clean up any existing Helm release before applying
+            logging.info("Checking for existing Karpenter Helm release...")
+            helm_list = subprocess.run(
+                ["helm", "list", "-n", "karpenter", "-o", "json"],
+                capture_output=True, text=True
+            )
+            
+            if helm_list.returncode == 0:
+                try:
+                    releases = json.loads(helm_list.stdout) if helm_list.stdout else []
+                    if any(r.get("name") == "karpenter" for r in releases):
+                        logging.info("Found existing Karpenter Helm release, removing it first...")
+                        subprocess.run(
+                            ["helm", "uninstall", "karpenter", "-n", "karpenter", "--wait"],
+                            check=True
+                        )
+                        time.sleep(10)  # Give it time to fully clean up
+                except Exception as helm_error:
+                    logging.warning(f"Failed to clean up Helm release: {helm_error}")
+            
             # Try to apply Karpenter module with error handling for access entry conflicts
             try:
                 self._run("apply", "-auto-approve", "-target", "module.karpenter", stream_output=True)
