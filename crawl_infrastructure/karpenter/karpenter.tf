@@ -79,9 +79,8 @@ resource "helm_release" "karpenter" {
   wait_for_jobs = true
   timeout = 1200  # Increased to 20 minutes
   
-  # Force update if the release already exists
+  # Allow recreation when needed
   force_update = true
-  replace = true
 
   set {
     name  = "settings.clusterName"
