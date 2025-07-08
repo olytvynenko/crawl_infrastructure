@@ -165,6 +165,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
 resource "null_resource" "karpenter_cleanup" {
   triggers = {
     cluster_name = var.cluster_name
+    region = data.aws_region.current.name
   }
 
   provisioner "local-exec" {
@@ -172,7 +173,7 @@ resource "null_resource" "karpenter_cleanup" {
     command = <<-EOT
       echo "Cleaning up Karpenter resources..."
       # Update kubeconfig
-      aws eks update-kubeconfig --name ${var.cluster_name} --region ${data.aws_region.current.name} || true
+      aws eks update-kubeconfig --name ${self.triggers.cluster_name} --region ${self.triggers.region} || true
       
       # Delete all nodepools and node classes
       kubectl delete nodepools.karpenter.sh --all --timeout=60s || true
