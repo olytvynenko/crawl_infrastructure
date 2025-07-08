@@ -60,20 +60,13 @@ resource "null_resource" "wait_for_oidc" {
   }
 }
 
-resource "kubernetes_namespace" "karpenter" {
-  metadata {
-    name = "karpenter"
-  }
-}
-
 resource "helm_release" "karpenter" {
   depends_on = [
     module.karpenter,
-    null_resource.wait_for_oidc,
-    kubernetes_namespace.karpenter
+    null_resource.wait_for_oidc
   ]
-  namespace           = kubernetes_namespace.karpenter.metadata[0].name
-  create_namespace    = false  # We create it separately above
+  namespace           = "karpenter"
+  create_namespace    = true  # Let Helm handle namespace creation
   name                = "karpenter"
   repository          = "oci://public.ecr.aws/karpenter"
   repository_username = var.repository_username
@@ -90,6 +83,7 @@ resource "helm_release" "karpenter" {
   force_update = true
   atomic = true  # Rollback on failure
   cleanup_on_fail = true  # Clean up resources on failure
+  replace = true  # Replace the release if it exists
 
   set {
     name  = "settings.clusterName"
