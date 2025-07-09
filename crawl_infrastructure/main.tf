@@ -45,7 +45,6 @@ module "karpenter" {
     helm = helm
   }
   karpenter_provisioner = merge(var.karpenter_provisioner, {
-    instance-type = local.env[terraform.workspace][var.cluster_level]
     topology      = local.env[terraform.workspace]["azs"]
     taints = {
       key    = "CrawlJob"

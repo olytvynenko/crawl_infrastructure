@@ -143,14 +143,15 @@ resource "helm_release" "karpenter" {
 
 resource "kubectl_manifest" "karpenter_nodepool" {
   yaml_body = templatefile("${path.module}/configs/karpenter-nodepool.yaml.tmpl", {
-    cluster_name  = var.cluster_name
-    name          = var.karpenter_provisioner.name
-    architectures = var.karpenter_provisioner.architectures
-    instance-type = var.karpenter_provisioner.instance-type
-    topology      = var.karpenter_provisioner.topology
-    taints        = var.karpenter_provisioner.taints
-    labels        = var.karpenter_provisioner.labels
-    # Removed role_name - not used in template
+    cluster_name      = var.cluster_name
+    name              = var.karpenter_provisioner.name
+    architectures     = var.karpenter_provisioner.architectures
+    instance-type     = var.karpenter_provisioner.instance-type  # Keep for backward compatibility
+    instance-families = var.karpenter_provisioner.instance-families
+    instance-sizes    = var.karpenter_provisioner.instance-sizes
+    topology          = var.karpenter_provisioner.topology
+    taints            = var.karpenter_provisioner.taints
+    labels            = var.karpenter_provisioner.labels
   })
   depends_on = [
     helm_release.karpenter

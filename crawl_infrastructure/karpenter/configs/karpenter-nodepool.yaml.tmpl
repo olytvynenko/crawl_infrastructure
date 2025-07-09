@@ -13,15 +13,34 @@ spec:
           - key: "karpenter.sh/capacity-type"
             operator: In
             values: ["spot"]
-          - key: node.kubernetes.io/instance-type
+          # Instance category (c=compute, m=general, r=memory optimized)
+          - key: "karpenter.k8s.aws/instance-category"
             operator: In
-            values: ${jsonencode(instance-type)}
+            values: ["m", "r", "t", "c"]  # General purpose, memory, burstable, compute
+          # Instance generation (use newer generations for better performance/cost)
+          - key: "karpenter.k8s.aws/instance-generation"
+            operator: Gt
+            values: ["5"]  # Use 6th gen and newer (6, 7, etc.)
+          # Architecture
           - key: "kubernetes.io/arch"
             operator: In
             values: ${jsonencode(architectures)}
+          # Operating system
           - key: kubernetes.io/os
             operator: In
             values: ["linux"]
+%{ if instance-families != null ~}
+          # Optional: Specific instance families if needed
+          - key: "karpenter.k8s.aws/instance-family"
+            operator: In
+            values: ${jsonencode(instance-families)}
+%{ endif ~}
+%{ if instance-sizes != null ~}
+          # Optional: Instance sizes if needed
+          - key: "karpenter.k8s.aws/instance-size"
+            operator: In
+            values: ${jsonencode(instance-sizes)}
+%{ endif ~}
 %{ if taints != null ~}
         taints:
         - key: ${taints.key}

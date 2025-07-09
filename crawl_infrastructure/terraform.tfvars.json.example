@@ -1,0 +1,50 @@
+{
+  "state_bucket_name": "linxact-terraform-state",
+  "lock_table_name": "terraform-locks",
+  "karpenter_chart_version": "1.5.0",
+  "karpenter_provisioner": {
+    "name": "default",
+    "architectures": [
+      "arm64"
+    ],
+    "instance-families": [
+      "r7g",
+      "r6g",
+      "m7g",
+      "m6g",
+      "t4g",
+      "c7g"
+    ],
+    "instance-sizes": [
+      "medium",
+      "large",
+      "xlarge"
+    ],
+    "topology": [
+      "us-east-1a",
+      "us-east-1b",
+      "us-east-1c",
+      "us-east-1d"
+    ],
+    "labels": {
+      "karpenter": "crawl"
+    }
+  },
+  "cluster_level": "inst8",
+  "clusters": {
+    "nv": {
+      "create": false,
+      "region": "us-east-1",
+      "name": "linxact-nv",
+      "azs": [
+        "us-east-1a",
+        "us-east-1b",
+        "us-east-1c",
+        "us-east-1d"
+      ],
+      "inst4": [],
+      "inst8": [],
+      "inst16": []
+    }
+  }
+}

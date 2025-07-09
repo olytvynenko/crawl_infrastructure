@@ -26,11 +26,13 @@ variable "karpenter_chart_version" {
 
 variable "karpenter_provisioner" {
   type = object({
-    name          = string
-    architectures = list(string)
-    instance-type = list(string)
-    topology      = list(string)
-    labels        = optional(map(string))
+    name              = string
+    architectures     = list(string)
+    instance-type     = optional(list(string))  # Made optional for backward compatibility
+    instance-families = optional(list(string))  # New: specific families like ["r7g", "r6g"]
+    instance-sizes    = optional(list(string))  # New: sizes like ["medium", "large"]
+    topology          = list(string)
+    labels            = optional(map(string))
     taints = optional(object({
       key    = string
       value  = string

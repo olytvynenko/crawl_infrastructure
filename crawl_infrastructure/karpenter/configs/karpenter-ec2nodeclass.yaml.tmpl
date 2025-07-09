@@ -4,7 +4,7 @@ metadata:
   name: default
 spec:
   kubelet:
-      maxPods: 10
+      maxPods: 110  # AWS EKS default, allows Karpenter to auto-calculate based on ENI limits
   subnetSelectorTerms:
     - tags:
         karpenter.sh/discovery: ${cluster_name}
